@@ -185,7 +185,7 @@ veb_boost = function(X, Y, fitFunctions = fitFnSusieStumps,
 
 #' wrapper for using SER w/ stumps
 #' @export
-veb_boost_stumps = function(X, Y, include_linear, num_cuts, family = c("gaussian", "binomial", "multinomial"), tol = length(Y) / 10000, mc.cores = 1) {
+veb_boost_stumps = function(X, Y, include_linear = TRUE, num_cuts = 100, family = c("gaussian", "binomial", "multinomial"), tol = length(Y) / 10000, mc.cores = 1) {
   cuts = apply(X, MARGIN = 2, function(col) quantile(col, probs = seq(from = 0, to = 1, length.out = num_cuts)))
   X_stumps = make_stumps_matrix(X, include_linear, sapply(1:ncol(cuts), function(i) list(cuts[, i])))
 
