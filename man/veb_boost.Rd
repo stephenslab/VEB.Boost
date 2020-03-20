@@ -51,7 +51,7 @@ zero. When this happens, we end up dividing by 0 in places, and this results in 
 \item{verbose}{is a logical flag specifying whether we should report convergence information as we go}
 
 \item{mc.cores}{is the number of cores to use in mclapply, only used in family == "multinomial", and only
-supported on UNIX systems, where mclapply works}
+supported on UNIX systems, where mclapply works. NOT CURRENTLY SUPPORTED}
 }
 \value{
 A \code{VEB_Boost_Node} object with the fit

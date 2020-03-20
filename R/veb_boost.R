@@ -44,7 +44,7 @@
 #' @param verbose is a logical flag specifying whether we should report convergence information as we go
 #'
 #' @param mc.cores is the number of cores to use in mclapply, only used in family == "multinomial", and only
-#' supported on UNIX systems, where mclapply works
+#' supported on UNIX systems, where mclapply works. NOT CURRENTLY SUPPORTED
 #'
 #'
 #' @return A \code{VEB_Boost_Node} object with the fit
@@ -110,7 +110,11 @@ veb_boost = function(X, Y, fitFunctions = fitFnSusieStumps,
   if ((family == "binomial") && any(!(Y %in% c(0, 1)))) {
     stop("'Y' must be 0/1 when using binomial response")
   }
-
+  # mc.cores
+  if (mc.cores != 1) {
+    message("Parallel multinomial updates not currently supported, setting 'mc.cores' to 1")
+    mc.cores = 1
+  }
 
   ### Run Gaussian/Binomial Cases ###
   if (family %in% c("gaussian", "binomial")) {
