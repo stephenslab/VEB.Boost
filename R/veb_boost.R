@@ -49,7 +49,8 @@
 #'
 #' @return A \code{VEB_Boost_Node} object with the fit
 #'
-
+#' @export
+#'
 
 veb_boost = function(X, Y, fitFunctions = fitFnSusieStumps,
                      predFunctions = predFnSusieStumps,
@@ -179,4 +180,13 @@ veb_boost = function(X, Y, fitFunctions = fitFnSusieStumps,
     return(learner_multiclass)
   }
 
+}
+
+
+# wrapper for using SER w/ stumps
+veb_boost_stumps = function(X, Y, include_linear, num_cuts, family = c("gaussian", "binomial", "multinomial"), tol = length(Y) / 10000, mc.cores = 1) {
+  cuts = apply(X, MARGIN = 2, function(col) quantile(col, probs = seq(from = 0, to = 1, length.out = num_cuts)))
+  X_stumps = make_stumps_matrix(X, include_linear, sapply(1:ncol(cuts), function(i) list(cuts[, i])))
+
+  return(veb_boost(X = list(X_stumps), Y = Y, tol = tol, mc.cores = mc.cores))
 }
