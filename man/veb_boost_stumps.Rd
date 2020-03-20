@@ -7,6 +7,7 @@
 veb_boost_stumps(
   X,
   Y,
+  k = 1,
   include_linear = TRUE,
   num_cuts = 100,
   family = c("gaussian", "binomial", "multinomial"),
