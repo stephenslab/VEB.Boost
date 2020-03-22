@@ -124,19 +124,22 @@ VEBBoostNode <- R6::R6Class(
 
     },
 
-    lockSelf = function() { # function node calls on itself to check if it's locked, and lock if necessary
+    lockSelf = function(changeToConstant = TRUE) { # function node calls on itself to check if it's locked, and lock if necessary
+      # if changeToConstant, change fitting function to constant
       if (self$isConstant) {
         self$isLocked = TRUE
-        self$fitFunction = private$.fitFnConstComp
-        self$predFunction = private$.predFnConstComp
-        self$constCheckFunction = private$.constCheckFnConstComp
-        self$updateFit()
-        try({self$updateMomentsAll()}, silent = T) # needed to avoid "attempt to apply non-function" error
+        if (changeToConstant) {
+          self$fitFunction = private$.fitFnConstComp
+          self$predFunction = private$.predFnConstComp
+          self$constCheckFunction = private$.constCheckFnConstComp
+          self$updateFit()
+          try({self$updateMomentsAll()}, silent = T) # needed to avoid "attempt to apply non-function" error
+        }
       }
       return(invisible(self))
     },
 
-    lockLearners = function() { # lock learners that should be locked
+    lockLearners = function(changeToConstant = TRUE) { # lock learners that should be locked
       # base_learners = Traverse(self$root, traversal = 'post-order', filterFun = function(x) x$isLeaf & !x$isLocked)
       # for (learner in base_learners) { # change any near-constant leaf to a constant and seal it off
       #   if (learner$isConstant) {
@@ -148,7 +151,7 @@ VEBBoostNode <- R6::R6Class(
       #     try({learner$updateMomentsAll()}, silent = T) # needed to avoid "attempt to apply non-function" error
       #   }
       # }
-      self$root$Do(function(node) node$lockSelf(), filterFun = function(node) node$isLeaf & !node$isLocked, traversal ='post-order')
+      self$root$Do(function(node) node$lockSelf(changeToConstant), filterFun = function(node) node$isLeaf & !node$isLocked, traversal ='post-order')
 
       base_learners = Traverse(self$root, filterFun = function(x) x$isLeaf & !x$isLocked)
       for (learner in base_learners) {
@@ -163,8 +166,8 @@ VEBBoostNode <- R6::R6Class(
       return(invisible(self$root))
     },
 
-    addLearnerAll = function() { # to each leaf, add a "+" and "*"
-      self$root$lockLearners() # lock learners
+    addLearnerAll = function(changeToConstant = TRUE) { # to each leaf, add a "+" and "*"
+      self$root$lockLearners(changeToConstant) # lock learners
 
       base_learners = Traverse(self$root, filterFun = function(x) x$isLeaf & !x$isLocked)
       for (learner in base_learners) {
@@ -189,8 +192,8 @@ VEBBoostNode <- R6::R6Class(
       return(invisible(self$root))
     },
 
-    convergeFitAll = function(tol = 1e-3, update_sigma2 = FALSE, update_ELBO_progress = TRUE, verbose = FALSE) {
-      self$addLearnerAll()
+    convergeFitAll = function(tol = 1e-3, update_sigma2 = FALSE, update_ELBO_progress = TRUE, changeToConstant = TRUE, verbose = FALSE) {
+      self$addLearnerAll(changeToConstant)
       self$convergeFit(tol, update_sigma2, update_ELBO_progress, verbose)
       return(invisible(self$root))
     },
