@@ -139,7 +139,7 @@ VEBBoostNode <- R6::R6Class(
       return(invisible(self))
     },
 
-    lockLearners = function(changeToConstant = TRUE) { # lock learners that should be locked
+    lockLearners = function(growMode = c("+", "*", "+*"), changeToConstant = TRUE) { # lock learners that should be locked
       # base_learners = Traverse(self$root, traversal = 'post-order', filterFun = function(x) x$isLeaf & !x$isLocked)
       # for (learner in base_learners) { # change any near-constant leaf to a constant and seal it off
       #   if (learner$isConstant) {
@@ -158,7 +158,7 @@ VEBBoostNode <- R6::R6Class(
         if (learner$isRoot) { # if root, not locked, do this to avoid errors in next if statement
           next
         }
-        if ((learner$siblings[[1]]$isLocked) && learner$parent$siblings[[1]]$isLocked) {
+        if (learner$siblings[[1]]$isLocked && ((growMode %in% c("+", "*")) || learner$parent$siblings[[1]]$isLocked)) {
           learner$isLocked = TRUE
         }
       }
@@ -167,7 +167,7 @@ VEBBoostNode <- R6::R6Class(
     },
 
     addLearnerAll = function(growMode = c("+", "*", "+*"), changeToConstant = TRUE) { # to each leaf, add a "+" and "*"
-      self$root$lockLearners(changeToConstant) # lock learners
+      self$root$lockLearners(growMode, changeToConstant) # lock learners
 
       base_learners = Traverse(self$root, filterFun = function(x) x$isLeaf & !x$isLocked)
       for (learner in base_learners) {
