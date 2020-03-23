@@ -7,12 +7,14 @@
 veb_boost(
   X,
   Y,
-  fitFunctions = fitFnSusieStumps,
-  predFunctions = predFnSusieStumps,
-  constCheckFunctions = constCheckFnSusieStumps,
+  fitFunctions,
+  predFunctions,
+  constCheckFunctions,
   growTree = TRUE,
   k = 1,
   d = 1,
+  growMode = c("+", "*", "+*"),
+  changeToConstant = TRUE,
   family = c("gaussian", "binomial", "multinomial"),
   tol = length(Y)/10000,
   verbose = TRUE,
@@ -43,6 +45,14 @@ structure (FALSE)}
 \item{d}{is either an integer, or an integer vector of length `k` for the multiplicative depth of each of the k terms
 NOTE: This can be dangerous. For example, if the fit starts out too large, then entire branhces will be fit to be exactly
 zero. When this happens, we end up dividing by 0 in places, and this results in NAs, -Inf, etc. USE AT YOUR OWN RISK}
+
+\item{growMode}{specifies how we grow the tree, either splitting nodes with addition, multiplication, or both
+If `+`, we grow mu_0 -> (mu_0 + mu_1)
+If `*`, we grow mu_0 -> (mu_0 * mu_1) (NOTE: Not recommended if we start with `k = 1`)
+If `+*``, we grow mu_0 -> (mu_0 * mu_2) + mu_1}
+
+\item{changeToConstant}{is a flag for if, when the fit is found to be basically constant, if we should actually change
+the fitting function of that node to fit exactly a constant value}
 
 \item{family}{is what family the response is}
 
