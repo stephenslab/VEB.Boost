@@ -197,6 +197,7 @@ VEBBoostNode <- R6::R6Class(
           mult_node = VEBBoostNode$new(learner_name, fitFunction = fitFn, predFunction = predFn, constCheckFunction = constCheckFn, currentFit = mult_fit)
           learner$children[[1]]$AddSiblingVEB(mult_node, "*", combine_name)
         }
+      }
 
       return(invisible(self$root))
     },
