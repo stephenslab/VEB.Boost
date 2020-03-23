@@ -175,16 +175,21 @@ VEBBoostNode <- R6::R6Class(
         predFn = learner$predFunction
         constCheckFn = learner$constCheckFunction
 
-        if (growMode %in% c("+", "+*")) { # if introducing an addition node....
+        if (growMode %in% c("+", "*")) {
+          learner_name = paste("mu_", learner$root$leafCount, sep = '')
+          combine_name = paste("combine_", learner$root$leafCount, sep = '')
+
+          add_fit = list(mu1 = rep(1 * (growMode == "*"), length(learner$Y)), mu2 = rep(1 * (growMode == "*"), length(learner$Y)), KL_div = 0)
+          add_node = VEBBoostNode$new(learner_name, fitFunction = fitFn, predFunction = predFn, constCheckFunction = constCheckFn, currentFit = add_fit)
+          learner$AddSiblingVEB(add_node, growMode, combine_name)
+        } else {
           learner_name = paste("mu_", learner$root$leafCount, sep = '')
           combine_name = paste("combine_", learner$root$leafCount, sep = '')
 
           add_fit = list(mu1 = rep(0, length(learner$Y)), mu2 = rep(0, length(learner$Y)), KL_div = 0)
           add_node = VEBBoostNode$new(learner_name, fitFunction = fitFn, predFunction = predFn, constCheckFunction = constCheckFn, currentFit = add_fit)
           learner$AddSiblingVEB(add_node, "+", combine_name)
-        }
 
-        if (growMode %in% c("*", "+*")) { # if also introducing a multiplication node....
           learner_name = paste("mu_", learner$root$leafCount, sep = '')
           combine_name = paste("combine_", learner$root$leafCount, sep = '')
 
@@ -192,7 +197,6 @@ VEBBoostNode <- R6::R6Class(
           mult_node = VEBBoostNode$new(learner_name, fitFunction = fitFn, predFunction = predFn, constCheckFunction = constCheckFn, currentFit = mult_fit)
           learner$children[[1]]$AddSiblingVEB(mult_node, "*", combine_name)
         }
-      }
 
       return(invisible(self$root))
     },
