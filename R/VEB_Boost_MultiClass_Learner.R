@@ -81,11 +81,11 @@ VEBBoostMultiClassLearner <- R6::R6Class(
       return(invisible(self))
     },
 
-    convergeFitAll = function(tol = 1e-3, update_ELBO_progress = TRUE, addMultiplication = TRUE, changeToConstant = TRUE, verbose = FALSE) {
+    convergeFitAll = function(tol = 1e-3, update_ELBO_progress = TRUE, growMode = "+*", changeToConstant = TRUE, verbose = FALSE) {
       # for (learner in self$learners) {
       #   learner = learner$addLearnerAll()
       # }
-      mclapply(self$learners, private$.addLearnerFn, addMultiplication = addMultiplication, changeToConstant = changeToConstant, mc.cores = self$mc.cores)
+      mclapply(self$learners, private$.addLearnerFn, growMode = growMode, changeToConstant = changeToConstant, mc.cores = self$mc.cores)
       self$convergeFit(tol, update_ELBO_progress, verbose)
       return(invisible(self))
     },
@@ -115,8 +115,8 @@ VEBBoostMultiClassLearner <- R6::R6Class(
       learner$root$Do(function(x) x$updateFit(), traversal = 'post-order')
       return(learner)
     },
-    .addLearnerFn = function(learner, addMultiplication, changeToConstant) { # function for learner to add nodes
-      learner$addLearnerAll(addMultiplication, changeToConstant)
+    .addLearnerFn = function(learner, growMode, changeToConstant) { # function for learner to add nodes
+      learner$addLearnerAll(growMode, changeToConstant)
       return(learner)
     }
   ),

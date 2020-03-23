@@ -37,9 +37,10 @@
 #' NOTE: This can be dangerous. For example, if the fit starts out too large, then entire branhces will be fit to be exactly
 #' zero. When this happens, we end up dividing by 0 in places, and this results in NAs, -Inf, etc. USE AT YOUR OWN RISK
 #'
-#' @param addMultiplication is a flag for if, when growing the tree, to also add a multiplication node.
-#' If TRUE, we grow mu_0 -> (mu_0 * mu_2) + mu_1
-#' If FALSE, we grow mu_0 -> (mu_0 + mu_1)
+#' @param growMode specifies how we grow the tree, either splitting nodes with addition, multiplication, or both
+#' If `+`, we grow mu_0 -> (mu_0 + mu_1)
+#' If `*`, we grow mu_0 -> (mu_0 * mu_1) (NOTE: Not recommended if we start with `k = 1`)
+#' If `+*``, we grow mu_0 -> (mu_0 * mu_2) + mu_1
 #'
 #' @param changeToConstant is a flag for if, when the fit is found to be basically constant, if we should actually change
 #' the fitting function of that node to fit exactly a constant value
@@ -60,7 +61,7 @@
 #'
 
 veb_boost = function(X, Y, fitFunctions, predFunctions, constCheckFunctions,
-                     growTree = TRUE, k = 1, d = 1, addMultiplication = TRUE, changeToConstant = TRUE,
+                     growTree = TRUE, k = 1, d = 1, growMode = c("+", "*", "+*"), changeToConstant = TRUE,
                      family = c("gaussian", "binomial", "multinomial"),
                      tol = length(Y) / 10000, verbose = TRUE, mc.cores = 1) {
 
@@ -71,9 +72,6 @@ veb_boost = function(X, Y, fitFunctions, predFunctions, constCheckFunctions,
   }
   if (!(verbose %in% c(TRUE, FALSE))) {
     stop("'verbose' must be either TRUE or FALSE")
-  }
-  if (!(addMultiplication %in% c(TRUE, FALSE))) {
-    stop("'addMultiplication' must be either TRUE or FALSE")
   }
   if (!(changeToConstant %in% c(TRUE, FALSE))) {
     stop("'changeToConstant' must be either TRUE or FALSE")
@@ -108,6 +106,8 @@ veb_boost = function(X, Y, fitFunctions, predFunctions, constCheckFunctions,
   if ((class(constCheckFunctions) != "list") || !(length(constCheckFunctions) %in% c(1, k)) || (class(constCheckFunctions[[1]]) != "function")) {
     stop("'constCheckFunctions' must either be a function, or a list of functions of length 1 or k")
   }
+  # Grow Mode
+  growMode = match.arg(growMode)
   # Family
   family = match.arg(family)
   # Tolerance
@@ -142,14 +142,14 @@ veb_boost = function(X, Y, fitFunctions, predFunctions, constCheckFunctions,
 
     # if growing tree, continue w/ growing tree & fitting to convergence
     if (growTree) {
-      learner = mu$convergeFitAll(tol = tol, update_sigma2 = update_sigma2, addMultiplication = addMultiplication, changeToConstant = changeToConstant, verbose = FALSE)
+      learner = mu$convergeFitAll(tol = tol, update_sigma2 = update_sigma2, growMode = growMode, changeToConstant = changeToConstant, verbose = FALSE)
 
       while ((abs(tail(tail(learner$ELBO_progress, 1)[[1]], 1) - tail(tail(learner$ELBO_progress, 2)[[1]], 1)) > tol) && (length(Traverse(learner, filterFun = function(node) node$isLeaf & !node$isLocked)) > 0)) {
         if (verbose) {
           cat(paste("ELBO: ", round(learner$ELBO, 3), sep = ""))
           cat("\n")
         }
-        learner$convergeFitAll(tol = tol, update_sigma2 = update_sigma2, addMultiplication = addMultiplication, changeToConstant = changeToConstant, verbose = FALSE)
+        learner$convergeFitAll(tol = tol, update_sigma2 = update_sigma2, growMode = growMode, changeToConstant = changeToConstant, verbose = FALSE)
       }
 
       return(learner)
@@ -180,7 +180,7 @@ veb_boost = function(X, Y, fitFunctions, predFunctions, constCheckFunctions,
 
     # if growing tree, continue w/ growing tree & fitting to convergence
     if (growTree) {
-      learner_multiclass = learner_multiclass$convergeFitAll(tol = tol, addMultiplication = addMultiplication, changeToConstant = changeToConstant)
+      learner_multiclass = learner_multiclass$convergeFitAll(tol = tol, growMode = growMode, changeToConstant = changeToConstant)
 
       while ((abs(tail(tail(learner_multiclass$ELBO_progress, 1)[[1]], 1) - tail(tail(learner_multiclass$ELBO_progress, 2)[[1]], 1)) > tol) &&
              (sum(sapply(learner_multiclass$learners, function(x) length(Traverse(x, filterFun = function(node) node$isLeaf & !node$isLocked)))) > 0)) {
@@ -188,7 +188,7 @@ veb_boost = function(X, Y, fitFunctions, predFunctions, constCheckFunctions,
           cat(paste("ELBO: ", round(learner_multiclass$ELBO, 3), sep = ""))
           cat("\n")
         }
-        learner_multiclass$convergeFitAll(tol = tol, addMultiplication = addMultiplication, changeToConstant = changeToConstant)
+        learner_multiclass$convergeFitAll(tol = tol, growMode = growMode, changeToConstant = changeToConstant)
       }
     }
 
@@ -200,9 +200,9 @@ veb_boost = function(X, Y, fitFunctions, predFunctions, constCheckFunctions,
 
 #' wrapper for using SER w/ stumps
 #' @export
-veb_boost_stumps = function(X, Y, k = 1, addMultiplication = TRUE, changeToConstant = TRUE, include_linear = TRUE, num_cuts = 100, family = c("gaussian", "binomial", "multinomial"), tol = length(Y) / 10000, mc.cores = 1) {
+veb_boost_stumps = function(X, Y, k = 1, growMode = "+*", changeToConstant = TRUE, include_linear = TRUE, num_cuts = 100, family = c("gaussian", "binomial", "multinomial"), tol = length(Y) / 10000, mc.cores = 1) {
   cuts = apply(X, MARGIN = 2, function(col) quantile(col, probs = seq(from = 0, to = 1, length.out = num_cuts)))
   X_stumps = make_stumps_matrix(X, include_linear, sapply(1:ncol(cuts), function(i) list(cuts[, i])))
 
-  return(veb_boost(X = list(X_stumps), Y = Y, k = k, addMultiplication = addMultiplication, changeToConstant = changeToConstant, family = family, tol = tol, mc.cores = mc.cores))
+  return(veb_boost(X = list(X_stumps), Y = Y, k = k, growMode = growMode, changeToConstant = changeToConstant, family = family, tol = tol, mc.cores = mc.cores))
 }

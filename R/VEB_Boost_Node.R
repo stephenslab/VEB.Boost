@@ -166,7 +166,7 @@ VEBBoostNode <- R6::R6Class(
       return(invisible(self$root))
     },
 
-    addLearnerAll = function(addMultiplication = TRUE, changeToConstant = TRUE) { # to each leaf, add a "+" and "*"
+    addLearnerAll = function(growMode = c("+", "*", "+*"), changeToConstant = TRUE) { # to each leaf, add a "+" and "*"
       self$root$lockLearners(changeToConstant) # lock learners
 
       base_learners = Traverse(self$root, filterFun = function(x) x$isLeaf & !x$isLocked)
@@ -174,14 +174,17 @@ VEBBoostNode <- R6::R6Class(
         fitFn = learner$fitFunction
         predFn = learner$predFunction
         constCheckFn = learner$constCheckFunction
-        learner_name = paste("mu_", learner$root$leafCount, sep = '')
-        combine_name = paste("combine_", learner$root$leafCount, sep = '')
 
-        add_fit = list(mu1 = rep(0, length(learner$Y)), mu2 = rep(0, length(learner$Y)), KL_div = 0)
-        add_node = VEBBoostNode$new(learner_name, fitFunction = fitFn, predFunction = predFn, constCheckFunction = constCheckFn, currentFit = add_fit)
-        learner$AddSiblingVEB(add_node, "+", combine_name)
+        if (growMode %in% c("+", "+*")) { # if introducing an addition node....
+          learner_name = paste("mu_", learner$root$leafCount, sep = '')
+          combine_name = paste("combine_", learner$root$leafCount, sep = '')
 
-        if (addMultiplication) { # if also introducing a multiplication node....
+          add_fit = list(mu1 = rep(0, length(learner$Y)), mu2 = rep(0, length(learner$Y)), KL_div = 0)
+          add_node = VEBBoostNode$new(learner_name, fitFunction = fitFn, predFunction = predFn, constCheckFunction = constCheckFn, currentFit = add_fit)
+          learner$AddSiblingVEB(add_node, "+", combine_name)
+        }
+
+        if (growMode %in% c("*", "+*")) { # if also introducing a multiplication node....
           learner_name = paste("mu_", learner$root$leafCount, sep = '')
           combine_name = paste("combine_", learner$root$leafCount, sep = '')
 
@@ -194,8 +197,8 @@ VEBBoostNode <- R6::R6Class(
       return(invisible(self$root))
     },
 
-    convergeFitAll = function(tol = 1e-3, update_sigma2 = FALSE, update_ELBO_progress = TRUE, addMultiplication = TRUE, changeToConstant = TRUE, verbose = FALSE) {
-      self$addLearnerAll(addMultiplication, changeToConstant)
+    convergeFitAll = function(tol = 1e-3, update_sigma2 = FALSE, update_ELBO_progress = TRUE, growMode = "+*", changeToConstant = TRUE, verbose = FALSE) {
+      self$addLearnerAll(growMode, changeToConstant)
       self$convergeFit(tol, update_sigma2, update_ELBO_progress, verbose)
       return(invisible(self$root))
     },
