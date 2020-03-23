@@ -59,9 +59,7 @@
 #' @export
 #'
 
-veb_boost = function(X, Y, fitFunctions = fitFnSusieStumps,
-                     predFunctions = predFnSusieStumps,
-                     constCheckFunctions = constCheckFnSusieStumps,
+veb_boost = function(X, Y, fitFunctions, predFunctions, constCheckFunctions,
                      growTree = TRUE, k = 1, d = 1, addMultiplication = TRUE, changeToConstant = TRUE,
                      family = c("gaussian", "binomial", "multinomial"),
                      tol = length(Y) / 10000, verbose = TRUE, mc.cores = 1) {
