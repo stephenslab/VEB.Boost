@@ -166,7 +166,7 @@ VEBBoostNode <- R6::R6Class(
       return(invisible(self$root))
     },
 
-    addLearnerAll = function(changeToConstant = TRUE) { # to each leaf, add a "+" and "*"
+    addLearnerAll = function(addMultiplication = TRUE, changeToConstant = TRUE) { # to each leaf, add a "+" and "*"
       self$root$lockLearners(changeToConstant) # lock learners
 
       base_learners = Traverse(self$root, filterFun = function(x) x$isLeaf & !x$isLocked)
@@ -181,19 +181,21 @@ VEBBoostNode <- R6::R6Class(
         add_node = VEBBoostNode$new(learner_name, fitFunction = fitFn, predFunction = predFn, constCheckFunction = constCheckFn, currentFit = add_fit)
         learner$AddSiblingVEB(add_node, "+", combine_name)
 
-        learner_name = paste("mu_", learner$root$leafCount, sep = '')
-        combine_name = paste("combine_", learner$root$leafCount, sep = '')
+        if (addMultiplication) { # if also introducing a multiplication node....
+          learner_name = paste("mu_", learner$root$leafCount, sep = '')
+          combine_name = paste("combine_", learner$root$leafCount, sep = '')
 
-        mult_fit = list(mu1 = rep(1, length(learner$Y)), mu2 = rep(1, length(learner$Y)), KL_div = 0)
-        mult_node = VEBBoostNode$new(learner_name, fitFunction = fitFn, predFunction = predFn, constCheckFunction = constCheckFn, currentFit = mult_fit)
-        learner$children[[1]]$AddSiblingVEB(mult_node, "*", combine_name)
+          mult_fit = list(mu1 = rep(1, length(learner$Y)), mu2 = rep(1, length(learner$Y)), KL_div = 0)
+          mult_node = VEBBoostNode$new(learner_name, fitFunction = fitFn, predFunction = predFn, constCheckFunction = constCheckFn, currentFit = mult_fit)
+          learner$children[[1]]$AddSiblingVEB(mult_node, "*", combine_name)
+        }
       }
 
       return(invisible(self$root))
     },
 
-    convergeFitAll = function(tol = 1e-3, update_sigma2 = FALSE, update_ELBO_progress = TRUE, changeToConstant = TRUE, verbose = FALSE) {
-      self$addLearnerAll(changeToConstant)
+    convergeFitAll = function(tol = 1e-3, update_sigma2 = FALSE, update_ELBO_progress = TRUE, addMultiplication = TRUE, changeToConstant = TRUE, verbose = FALSE) {
+      self$addLearnerAll(addMultiplication, changeToConstant)
       self$convergeFit(tol, update_sigma2, update_ELBO_progress, verbose)
       return(invisible(self$root))
     },
