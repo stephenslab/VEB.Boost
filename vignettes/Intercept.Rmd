@@ -1,0 +1,32 @@
+---
+title: "Intercept"
+author: "Andrew Goldstein"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Intercept}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+A quick note on the intercept.
+
+Often times when performing weighted Bayesian linear regression $Y = Xb + \delta + e$, where $e \sim \mathcal{N}(0, diag(\vec{\sigma^2}))$, the intercept $\delta$ is given a flat prior, which is achieved computationally by subtracting the weighted columns means of $X$ and the weighted mean of $Y$ (weighted by the precisions $\frac{1}{\sigma_i^2}$), yielding weighted centered versions $\tilde{X}$ and $\tilde{Y}$. Then, using these centered versions, the practitioner proceeds to fit the data without an intercept. Then, the intercept is re-introduced at the end as the constant value $\delta \equiv \tilde{Y} - \tilde{X}\bar{b}$, where $\bar{b}$ is the posterior mean of $b$.
+
+For reasons that I will not go into here, performing the above can cause the ELBO to decrease.
+
+In order to fix the problem, your fit function can proceed with the weighted centering operations. However, when re-introducing the intercept back into the fit for the purpose of calculating the second moment, instead treat the intercept given the vector $b$ as a point mass at $\delta \equiv \tilde{Y} - \tilde{X}b$. Thus, when calculating the first and second moments
+$$
+\mathbb{E}_q[Xb + \delta] \quad \text{and} \quad \mathbb{E}_q[(Xb + \delta)^2]
+$$
+you should substitute in $\tilde{Y} - \tilde{X}b$ for $\delta$, i.e.
+$$
+\mathbb{E}_q[Xb + \tilde{Y} - \tilde{X}b] \quad \text{and} \quad \mathbb{E}_q[(Xb + \tilde{Y} - \tilde{X}b)^2]
+$$
