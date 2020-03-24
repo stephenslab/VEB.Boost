@@ -66,7 +66,7 @@ The list MUST include the following elements:
 
 - `$mu2` $\in \mathbb{R}_+^n$: contains the second posterior moments of our fit;
 
-- `$KL_div` $\in \mathbb{R}_+^n$: contains the KL-divergence from the variational approximation to the prior at the node.
+- `$KL_div` $\in \mathbb{R}_+$: contains the KL-divergence from the variational approximation to the prior at the node.
 
 
 ## Prediction Function[s] `predFunctions`
@@ -78,7 +78,7 @@ p: (\mathcal{X}, \mathcal{F}, \{1, 2\}) \to \mathbb{E}_q[\mu|X \in \mathcal{X_{n
 $$
 In other words, given a new predictor object $X_{new} \in \mathcal{X}$, and your current fit $F \in \mathcal{F}$ that encodes the variational approximation $q$, this function returns either the first or second moment for the fit using the given new data.
 
-## Constant Check Function[s] `constCheckFunctions
+## Constant Check Function[s] `constCheckFunctions`
 The user must supply 1 or `k` functions to be used as the constant check functions for each node. If 1 function is given, then each node uses the same check function. If a list of `k` functions is given, then each addition branch uses its own check function.
 
 A constant check function is a map:
@@ -106,7 +106,7 @@ All nodes within a product share a predictor object, fit funcion, prediction fun
 ## `growMode`
 This argument specifies how we grow the tree (assuming `growTree` is `TRUE`). There are 3 different options specifying how we "split" non-constant nodes:
 
-1. `"+"`: we grow $\mu_0 \to m\u_0 + \mu_1$;
+1. `"+"`: we grow $\mu_0 \to \mu_0 + \mu_1$;
 
 2. `"*"`, we grow $\mu_0 \to \mu_0 \circ \mu_1$ (NOTE: Not recommended if we start with `k = 1`);
 
