@@ -1,0 +1,129 @@
+---
+title: "VEB-Boost"
+author: "Andrew Goldstein"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{VEB-Boost}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+# Introduction
+This vignette walks through the basics of how to use the `VEB.Boost` package. In particular, it outlines the requirements for use-supplied inputs, as well as the different arguments that can be toggled in the `veb_boost` function.
+
+
+# User-Supplied Inputs
+This section outlines the different user-supplied inputs to be provided to the `veb_boost` function.
+
+## Predictor-Object `X`
+The user must supply a list of objects to be used as the "inputs" for each node. The list `X` must be of length 1 or `k` (see the `veb_boost` parameters section). If the length is 1, then all nodes use the same predictor object. If the length is `k`, then each addition branch uses its own predictor object.
+
+Each list element of `X` can take any form the user desires, so long as the user-supplied fitting and prediction functions work on the same input type. For generality, we will call the class of objects that each element of `X` belongs to as $\mathcal{X}$.
+
+Note that is the user wants the input `X` to be a list, then the list object must be contained within another list. For example, say the user-supplied fit function takes in a list of matrices, call it `M`. Then the user must set `X = list(M)`.
+
+## Response `Y`
+The user must supply a response vector `Y`. If the data has Gaussian noise, `Y` must be a numeric vector; if the data is binary, `Y` must be a vector of 0's and 1's; if the data is multinomial, `Y` can be a vector of any form.
+
+For generality, we will call the space that `Y` belongs to as $\mathcal{Y}$.
+
+## Fitting Function[s] `fitFunctions`
+The user must supply 1 or `k` functions to be used as the fitting functions for each node. If 1 function is given, then each node uses the same fitting function. If a list of `k` functions is given, then each addition branch uses its own fit function. Define the space of a node's fit to be $\mathcal{F}$; for the variational approximation $q$ of the fit of $\mu$ encoded in $\mathcal{F}$, this space must contain information on the following:
+$$
+\begin{aligned}
+\mathbb{E}_q[\mu_i], \quad i = 1, \dots, n \\
+\mathbb{E}_q[\mu_i^2], \quad i = 1, \dots, n \\
+D_{KL}(q || p) \quad \text{for prior distribution } \; p
+\end{aligned}
+$$
+
+A fit function $f$ is a map
+$$
+f: (\mathcal{X}, \mathcal{Y}, \mathbb{R}_{++}^n, \mathcal{F}) \to \mathcal{F}
+$$
+So the fit function must take in 4 arguments:
+
+1. The predictor object at the given node;
+
+2. The current (numeric) response at the given node;
+
+3. The current variances at the given node;
+
+4. The current fit at the given node, to be used as an itialization for the fit function.
+
+The output of the fit function must be a list encoding the variational approximation fitted at the node.
+
+The list MUST include the following elements:
+- `$mu1` $\in \mathbb{R}^n$: contains the first posterior moments of our fit;
+
+- `$mu2` $\in \mathbb{R}_+^n$: contains the second posterior moments of our fit;
+
+- `$KL_div` $\in \mathbb{R}_+$: contains the KL-divergence from the variational approximation to the prior at the node.
+
+
+## Prediction Function[s] `predFunctions`
+The user must supply 1 or `k` functions to be used as the prediction functions for each node. If 1 function is given, then each node uses the same prediction function. If a list of `k` functions is given, then each addition branch uses its own prediction function.
+
+A prediction function is a map
+$$
+p: (\mathcal{X}, \mathcal{F}, \{1, 2\}) \to \mathbb{E}_q[\mu|X \in \mathcal{X_{new}}] \quad \text{or} \quad \mathbb{E}_q[\mu^2|X_{new} \in \mathcal{X}]
+$$
+In other words, given a new predictor object $X_{new} \in \mathcal{X}$, and your current fit $F \in \mathcal{F}$ that encodes the variational approximation $q$, this function returns either the first or second moment for the fit using the given new data.
+
+## Constant Check Function[s] `constCheckFunctions`
+The user must supply 1 or `k` functions to be used as the constant check functions for each node. If 1 function is given, then each node uses the same check function. If a list of `k` functions is given, then each addition branch uses its own check function.
+
+A constant check function is a map:
+$$
+c: \mathcal{F} \to \{\text{TRUE}, \text{FALSE}\}
+$$
+In other words, it takes in the current fit of the node $F \in \mathcal{F}$ and returns a `TRUE` if the fit is close enough to a constant value, and `FALSE` otherwise.
+
+Note that the function $c \equiv \text{FALSE}$ is a valid constant check function, but may retult in slower convergence.
+
+# `veb_boost` Arguments
+This section outlines the different arguments that can be modified in the `veb_boost` function.
+
+
+## `growTree`
+This argument specifies whether, after the current VEB-Boost tree is fit to convergence, if we will attempt to grow the tree. See `growMode`.
+
+## `k` and `d`
+These arguments specify the initial structure of the VEB-Boost tree. `k` must be a whole number, and `d` either a whole number, or a `k`-vector of whole numbers. WLOG, let `d` be a `k`-vector of whole numbers, possibly just one number repeated `k` times. Then the initial tree structure is:
+$$
+T(\mu_1, \dots, \mu_{d_1 + \dots d_k}) = \sum_{i = 1}^k \prod_{j = 1}^{d_i} \mu_{j + \sum_{l < i} d_l}
+$$
+All nodes within a product share a predictor object, fit funcion, prediction function, and constant check function, which is why the length of these inputs must be exactly 1 or `k`.
+
+## `growMode`
+This argument specifies how we grow the tree (assuming `growTree` is `TRUE`). There are 3 different options specifying how we "split" non-constant nodes:
+
+1. `"+"`: we grow $\mu_0 \to \mu_0 + \mu_1$;
+
+2. `"*"`, we grow $\mu_0 \to \mu_0 \circ \mu_1$ (NOTE: Not recommended if we start with `k = 1`);
+
+3. `"+*"` (RECOMMENDED): we grow $\mu_0 \to (\mu_0 \circ \mu_2) + \mu_1$.
+
+
+## `changeToConstant`
+This argument specifies whether to change constant nodes to fit exactly a constant function, or whether thwy should continue to fit the user-specified function.
+
+## `family`
+This argument specifies what family the data comes from: `gaussian`, `binomial`, or `multinomial`.
+
+## `tol`
+This argument specifies the convergence level to be used. Each pass at updating a given VEB-Boost tree structure ends when either the ELBO changes by less than `tol` after updating all nodes, or when all nodes we would add would be constant.
+
+## `vebose`
+This argument specifies whether to print the ELBO before we grow the VEB-Boost tree.
+
+## `mc.cores`
+STILL IN DEVELOPMENT, but once operational, this argument will specify how many nodes to use when fitting `multinomial` data, and allows us to update our trees (one for each class) in parallel. Only available on systems with forking functionality, e.g. UNIX-type systems.
