@@ -1,4 +1,4 @@
-#' @importFrom spatstat.utils revcumsum
+### SuSiE stumps-related functions
 
 calc_KL = function(mu, alpha, sigma2, V = 1) {
   p = length(mu)
@@ -88,6 +88,7 @@ make_stumps_matrix = function(X, include_linear, Xtrain=NULL){
   return(xl)
 }
 
+#' @importFrom spatstat.utils revcumsum
 # over-write stumps multiplication (WHY IS THERE A -1*.... ?!?!?)
 #' @title Compute unscaled X \%*\% b using the special structure of trend filtering
 #' @param X a tfg_matrix created by make_tfg_matrix
