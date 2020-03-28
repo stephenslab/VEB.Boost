@@ -185,12 +185,16 @@ weighted_SER = function(X, Y, sigma2, init = list(V = NULL)) {
 
   beta_post_1 = alpha * mu
   beta_post_2 = alpha * (sigma2_post + mu^2)
-  intercept = as.numeric(Y_avg - sum(X_avg * beta_post_1))
+
+  Xb_post = compute_Xb(X, beta_post_1)
+  X_avg_b_post = sum(X_avg * beta_post_1)
+
+  intercept = as.numeric(Y_avg - X_avg_b_post)
 
   # mu1 = E[int + Xb] = E[Y_avg - X_avg'b + Xb]
-  mu1 = intercept + compute_Xb(X, beta_post_1)
+  mu1 = intercept + Xb_post
   # mu2 = E[(int + Xb)^2] = E[(Y_avg - X_avg'b + Xb)^2]
-  mu2 = Y_avg^2 + 2*Y_avg*(compute_Xb(X, beta_post_1) - sum(X_avg * beta_post_1)) + compute_X2b(X, beta_post_2, X_avg)
+  mu2 = Y_avg^2 + 2*Y_avg*(Xb_post - X_avg_b_post) + compute_X2b(X, beta_post_2, X_avg)
 
   KL_div = calc_KL(mu, alpha, sigma2_post, V)
 
