@@ -14,9 +14,6 @@ calc_KL = function(mu, alpha, sigma2, V = 1) {
 
 # over-write optimize_V code w/ weighted version
 log_lik_SER = function(V, tau_no_V, nu, sigma2, prior_weights) {
-  if (length(sigma2) == 1) {
-    sigma2 = rep(sigma2, length(nu))
-  }
   tau = tau_no_V + (1 / V)
   m = -(log(tau) / 2) + (nu^2 / (2 * tau))
   m_max = max(m)
@@ -29,6 +26,9 @@ neg.loglik.logscale = function(lV, tau_no_V, nu, sigma2, prior_weights){
 }
 
 optimize_V = function(tau_no_V, nu, sigma2, prior_weights, V = 1) {
+  if (length(sigma2) == 1) {
+    sigma2 = rep(sigma2, length(nu))
+  }
   lV = optim(par = log(V), fn = neg.loglik.logscale, tau_no_V = tau_no_V, nu = nu, sigma2 = sigma2, prior_weights = prior_weights, method='Brent', lower = -10, upper = 15)$par
   V = exp(lV)
   return(V)
@@ -169,19 +169,38 @@ weighted_SER = function(X, Y, sigma2, init = list(V = NULL)) {
   tau_no_V = compute_X2ty(X, inv_sigma2, X_avg)
   nu = compute_Xty(X, Y_cent / sigma2) - (X_avg * sum(Y_cent / sigma2))
 
+  # optim method, seems to be slower than EM method
+  # V = ifelse(is.null(init$V), 1, init$V)
+  # V = optimize_V(tau_no_V, nu, sigma2, prior_weights, V)
+  #
+  # tau = tau_no_V + (1 / V)
+  #
+  # alpha = log(prior_weights) - (.5 * log(tau)) + (.5 * nu^2 / tau)
+  # alpha = alpha - max(alpha)
+  # alpha = exp(alpha)
+  # alpha = alpha / sum(alpha)
+  #
+  # mu = nu / tau
+  #
+  # sigma2_post = 1 / tau
+
+  # iterative EM version, seems to be faster than optim method
   V = ifelse(is.null(init$V), 1, init$V)
-  V = optimize_V(tau_no_V, nu, sigma2, prior_weights, V)
+  V_old = Inf
+  while(abs(V - V_old) > 1e-10) {
+    V_old = V
+    tau = tau_no_V + (1 / V)
 
-  tau = tau_no_V + (1 / V)
+    alpha = log(prior_weights) - (.5 * log(tau)) + (.5 * nu^2 / tau)
+    alpha = alpha - max(alpha)
+    alpha = exp(alpha)
+    alpha = alpha / sum(alpha)
 
-  alpha = log(prior_weights) - (.5 * log(tau)) + (.5 * nu^2 / tau)
-  alpha = alpha - max(alpha)
-  alpha = exp(alpha)
-  alpha = alpha / sum(alpha)
+    mu = nu / tau
 
-  mu = nu / tau
-
-  sigma2_post = 1 / tau
+    sigma2_post = 1 / tau
+    V = sum(alpha * (sigma2_post + mu^2))
+  }
 
   beta_post_1 = alpha * mu
   beta_post_2 = alpha * (sigma2_post + mu^2)
