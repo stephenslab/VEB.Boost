@@ -170,11 +170,41 @@ weighted_SER = function(X, Y, sigma2, init = list(V = NULL)) {
   nu = compute_Xty(X, Y_cent / sigma2) - (X_avg * sum(Y_cent / sigma2))
 
   # optim method, seems to be slower than EM method
+  V = ifelse(is.null(init$V), 1, init$V)
+  V = optimize_V(tau_no_V, nu, sigma2, prior_weights, V)
+
+  tau = tau_no_V + (1 / V)
+
+  alpha = log(prior_weights) - (.5 * log(tau)) + (.5 * nu^2 / tau)
+  alpha = alpha - max(alpha)
+  alpha = exp(alpha)
+  alpha = alpha / sum(alpha)
+
+  mu = nu / tau
+
+  sigma2_post = 1 / tau
+
+  # iterative EM version, seems to be faster than optim method (but sometimes takes HOURS to converve.... probably not a great idea)
   # V = ifelse(is.null(init$V), 1, init$V)
-  # V = optimize_V(tau_no_V, nu, sigma2, prior_weights, V)
+  # V_old = Inf
+  # while(abs(V - V_old) > 1e-10) {
+  #   V_old = V
+  #   tau = tau_no_V + (1 / V)
   #
+  #   alpha = log(prior_weights) - (.5 * log(tau)) + (.5 * nu^2 / tau)
+  #   alpha = alpha - max(alpha)
+  #   alpha = exp(alpha)
+  #   alpha = alpha / sum(alpha)
+  #
+  #   mu = nu / tau
+  #
+  #   sigma2_post = 1 / tau
+  #   V = sum(alpha * (sigma2_post + mu^2))
+  # }
+
+  # single EM update
+  # V = ifelse(is.null(init$V), 1, init$V)
   # tau = tau_no_V + (1 / V)
-  #
   # alpha = log(prior_weights) - (.5 * log(tau)) + (.5 * nu^2 / tau)
   # alpha = alpha - max(alpha)
   # alpha = exp(alpha)
@@ -183,24 +213,7 @@ weighted_SER = function(X, Y, sigma2, init = list(V = NULL)) {
   # mu = nu / tau
   #
   # sigma2_post = 1 / tau
-
-  # iterative EM version, seems to be faster than optim method
-  V = ifelse(is.null(init$V), 1, init$V)
-  V_old = Inf
-  while(abs(V - V_old) > 1e-10) {
-    V_old = V
-    tau = tau_no_V + (1 / V)
-
-    alpha = log(prior_weights) - (.5 * log(tau)) + (.5 * nu^2 / tau)
-    alpha = alpha - max(alpha)
-    alpha = exp(alpha)
-    alpha = alpha / sum(alpha)
-
-    mu = nu / tau
-
-    sigma2_post = 1 / tau
-    V = sum(alpha * (sigma2_post + mu^2))
-  }
+  # V = sum(alpha * (sigma2_post + mu^2))
 
   beta_post_1 = alpha * mu
   beta_post_2 = alpha * (sigma2_post + mu^2)
