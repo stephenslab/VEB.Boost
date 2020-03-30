@@ -121,34 +121,37 @@ compute_tfg_Xty = function(X,y){
 # computes (X - X_avg)^2 %*% b
 compute_X2b = function(X, b, X_avg = 0) {
   if (is.list(X)) {
-    n_var = unlist(lapply(X,get_ncol)) # number of variables for each element of X
-    b_split = split_vector(b,n_var) # split b into a list of vectors
-    X2b = mapply(compute_X2b, X, b_split, SIMPLIFY = FALSE) # apply compute_X2b to elements of lists X, b_split
-    return(Reduce(`+`, X2b) - 2*compute_Xb(X, b*X_avg) + sum(X_avg^2 * b)) # add the results up
+    n_var = sapply(X, get_ncol) # number of variables for each element of X
+    b_split = split_vector(b, n_var) # split b into a list of vectors
+    X_avg_split = split_vector(X_avg, n_var)
+    X2b = mapply(compute_X2b_FIXED, X, b_split, X_avg_split, SIMPLIFY = FALSE) # apply compute_X2b to elements of lists X, b_split
+    return(Reduce(`+`, X2b)) # add the results up
   } else {
     if (is.tfg_matrix(X)) {
       # X is boolean matrix, so X^2 = X
-      return(compute_Xb(X, b))
+      return(compute_Xb(X, b) - 2*compute_Xb(X, b*X_avg) + sum(X_avg^2 * b))
     } else {
-      return(compute_Xb(X^2, b))
+      return(compute_Xb(X^2, b) - 2*compute_Xb(X, b*X_avg) + sum(X_avg^2 * b))
     }
   }
 }
-
 
 # computes t((X - X_avg)^2) %*% y
 compute_X2ty = function(X, y, X_avg = 0) {
   if (is.list(X)) {
-    return(unlist(lapply(X, compute_X2ty, y = y)) - 2*compute_Xty(X, y)*X_avg + (X_avg^2 * sum(y)))
+    X_avg_split = split_vector(X_avg, sapply(X, get_ncol))
+    y_list = rep(list(y), length(X_avg_split))
+    return(unlist(mapply(compute_X2ty_FIXED, X, y_list, X_avg_split)))
   } else {
     if (is.tfg_matrix(X)) {
       # X is boolean matrix, so X^2 = X
-      return(as.numeric(compute_Xty(X, y)))
+      return(as.numeric(compute_Xty(X, y)) * (1 - 2*X_avg) + (X_avg^2 * sum(y)))
     } else {
-      return(as.numeric(compute_Xty(X^2, y)))
+      return(as.numeric(compute_Xty(X^2, y) - 2*compute_Xty(X, y)*X_avg + (X_avg^2 * sum(y))))
     }
   }
 }
+
 
 # weighted SER function, linear terms + stumps
 # X is a list, first element corresponds to linear, others are stumps for variables
