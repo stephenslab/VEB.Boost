@@ -124,7 +124,7 @@ compute_X2b = function(X, b, X_avg = 0) {
     n_var = sapply(X, get_ncol) # number of variables for each element of X
     b_split = split_vector(b, n_var) # split b into a list of vectors
     X_avg_split = split_vector(X_avg, n_var)
-    X2b = mapply(compute_X2b_FIXED, X, b_split, X_avg_split, SIMPLIFY = FALSE) # apply compute_X2b to elements of lists X, b_split
+    X2b = mapply(compute_X2b, X, b_split, X_avg_split, SIMPLIFY = FALSE) # apply compute_X2b to elements of lists X, b_split
     return(Reduce(`+`, X2b)) # add the results up
   } else {
     if (is.tfg_matrix(X)) {
@@ -141,7 +141,7 @@ compute_X2ty = function(X, y, X_avg = 0) {
   if (is.list(X)) {
     X_avg_split = split_vector(X_avg, sapply(X, get_ncol))
     y_list = rep(list(y), length(X_avg_split))
-    return(unlist(mapply(compute_X2ty_FIXED, X, y_list, X_avg_split)))
+    return(unlist(mapply(compute_X2ty, X, y_list, X_avg_split)))
   } else {
     if (is.tfg_matrix(X)) {
       # X is boolean matrix, so X^2 = X
