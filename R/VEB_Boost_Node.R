@@ -56,15 +56,42 @@ VEBBoostNode <- R6::R6Class(
         return(invisible(self$parent$updateMomentsAll()))
       }
     },
+    
+    updateCurrentInputs = function(currentInputs) { # update what current response and variances are (currentInputs = list(current_Y, current_sigma2)
+      if (self$isRoot) {
+        return(currentInputs)
+      }
+      if (self$parent$operator == "+") {
+        currentInputs$Y = currentInputs$Y - self$siblings[[1]]$mu1
+        currentInputs$sigma2 = currentInputs$sigma2
+      } else {
+        currentInputs$Y = currentInputs$Y * (self$siblings[[1]]$mu1 / self$siblings[[1]]$mu2)
+        currentInputs$sigma2 = currentInputs$sigma2 / self$siblings[[1]]$mu2
+      }
+      return(currentInputs)
+    }, 
 
-    updateFit = function() { # function to update currentFit
+    updateFit = function(currentInputs = NULL) { # function to update currentFit
       if (self$isLeaf) {
-        self$currentFit = self$fitFunction(X = self$X, Y = self$Y, sigma2 = self$sigma2, init = self$currentFit)
+        if (is.null(currentInputs)) { # when starting at mu_0
+          currentInputs = list(Y = self$Y, sigma2 = self$sigma2)
+        } else { # else, update inputs
+          currentInputs = self$updateCurrentInputs(currentInputs)
+        }
+        self$currentFit = self$fitFunction(X = self$X, Y = currentInputs$Y, sigma2 = currentInputs$sigma2, init = self$currentFit)
       }
       if (!self$isRoot) {
         self$parent$updateMoments()
+        # now, revert to inputs at parent
+        if (self$parent$operator == "+") {
+          currentInputs$Y = currentInputs$Y + self$siblings[[1]]$mu1
+          currentInputs$sigma2 = currentInputs$sigma2
+        } else {
+          currentInputs$Y = currentInputs$Y / (self$siblings[[1]]$mu1 / self$siblings[[1]]$mu2)
+          currentInputs$sigma2 = currentInputs$sigma2 * self$siblings[[1]]$mu2
+        }
       }
-      return(invisible(self))
+      return(currentInputs)
     },
 
     update_sigma2 = function() { # function to update sigma2
@@ -78,7 +105,8 @@ VEBBoostNode <- R6::R6Class(
       ELBOs[2] = self$root$ELBO
       i = 2
       while (abs(ELBOs[i] - ELBOs[i-1]) > tol) {
-        self$root$Do(function(x) try({x$updateFit()}, silent = T), traversal = 'post-order')
+        currentInputs = NULL
+        self$root$Do(function(x) currentInputs = x$updateFit(currentInputs), traversal = 'post-order')
         if (update_sigma2) {
           self$root$update_sigma2()
         }
