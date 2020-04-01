@@ -32,8 +32,8 @@ VEBBoostNode <- R6::R6Class(
           private$.mu1 = children_mu1[, 1] + children_mu1[, 2]
           private$.mu2 = children_mu2[, 1] + children_mu2[, 2] + (2 * children_mu1[, 1] * children_mu1[, 2])
         } else {
-          private$.mu1 = children_mu1[, 1] * children_mu1[, 2])
-          private$.mu2 = children_mu2[, 1] * children_mu2[, 2])
+          private$.mu1 = children_mu1[, 1] * children_mu1[, 2]
+          private$.mu2 = children_mu2[, 1] * children_mu2[, 2]
         }
       }
 
@@ -45,11 +45,11 @@ VEBBoostNode <- R6::R6Class(
         children_mu1 = sapply(self$children, function(x) x$mu1)
         children_mu2 = sapply(self$children, function(x) x$mu2)
         if (self$operator == "+") {
-          private$.mu1 = rowsums(children_mu1)
-          private$.mu2 = rowsums(children_mu2) + 2*rowprods(children_mu1)
+          private$.mu1 = children_mu1[, 1] + children_mu1[, 2]
+          private$.mu2 = children_mu2[, 1] + children_mu2[, 2] + (2 * children_mu1[, 1] * children_mu1[, 2])
         } else {
-          private$.mu1 = rowprods(children_mu1)
-          private$.mu2 = rowprods(children_mu2)
+          private$.mu1 = children_mu1[, 1] * children_mu1[, 2]
+          private$.mu2 = children_mu2[, 1] * children_mu2[, 2]
         }
       }
       if (self$isRoot) { # if at root, stop
