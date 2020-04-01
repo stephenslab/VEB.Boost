@@ -26,13 +26,14 @@ VEBBoostNode <- R6::R6Class(
 
     updateMoments = function() { # after updating the fit, pass changes to moments up to parent node
       if (!self$isLeaf) { # if not at a leaf, update moments
+        children_mu1 = sapply(self$children, function(x) x$mu1)
+        children_mu2 = sapply(self$children, function(x) x$mu2)
         if (self$operator == "+") {
-          children_mu1 = sapply(self$children, function(x) x$mu1)
-          private$.mu1 = as.numeric(apply(children_mu1, MARGIN = 1, sum))
-          private$.mu2 = as.numeric(apply(sapply(self$children, function(x) x$mu2), MARGIN = 1, sum) + 2*apply(children_mu1, MARGIN = 1, prod))
+          private$.mu1 = children_mu1[, 1] + children_mu1[, 2]
+          private$.mu2 = children_mu2[, 1] + children_mu2[, 2] + (2 * children_mu1[, 1] * children_mu1[, 2])
         } else {
-          private$.mu1 = as.numeric(apply(sapply(self$children, function(x) x$mu1), MARGIN = 1, prod))
-          private$.mu2 = as.numeric(apply(sapply(self$children, function(x) x$mu2), MARGIN = 1, prod))
+          private$.mu1 = children_mu1[, 1] * children_mu1[, 2]
+          private$.mu2 = children_mu2[, 1] * children_mu2[, 2]
         }
       }
 
@@ -41,13 +42,14 @@ VEBBoostNode <- R6::R6Class(
 
     updateMomentsAll = function() { # after updating the fit, pass changes to moments up to internal nodes
       if (!self$isLeaf) { # if not at a leaf, update moments
+        children_mu1 = sapply(self$children, function(x) x$mu1)
+        children_mu2 = sapply(self$children, function(x) x$mu2)
         if (self$operator == "+") {
-          children_mu1 = sapply(self$children, function(x) x$mu1)
-          private$.mu1 = as.numeric(apply(children_mu1, MARGIN = 1, sum))
-          private$.mu2 = as.numeric(apply(sapply(self$children, function(x) x$mu2), MARGIN = 1, sum) + 2*apply(children_mu1, MARGIN = 1, prod))
+          private$.mu1 = children_mu1[, 1] + children_mu1[, 2]
+          private$.mu2 = children_mu2[, 1] + children_mu2[, 2] + (2 * children_mu1[, 1] * children_mu1[, 2])
         } else {
-          private$.mu1 = as.numeric(apply(sapply(self$children, function(x) x$mu1), MARGIN = 1, prod))
-          private$.mu2 = as.numeric(apply(sapply(self$children, function(x) x$mu2), MARGIN = 1, prod))
+          private$.mu1 = children_mu1[, 1] * children_mu1[, 2]
+          private$.mu2 = children_mu2[, 1] * children_mu2[, 2]
         }
       }
       if (self$isRoot) { # if at root, stop
@@ -56,15 +58,42 @@ VEBBoostNode <- R6::R6Class(
         return(invisible(self$parent$updateMomentsAll()))
       }
     },
+    
+    updateCurrentInputs = function(currentInputs) { # update what current response and variances are (currentInputs = list(current_Y, current_sigma2)
+      if (self$isRoot) {
+        return(currentInputs)
+      }
+      if (self$parent$operator == "+") {
+        currentInputs$Y = currentInputs$Y - self$siblings[[1]]$mu1
+        currentInputs$sigma2 = currentInputs$sigma2
+      } else {
+        currentInputs$Y = currentInputs$Y * (self$siblings[[1]]$mu1 / self$siblings[[1]]$mu2)
+        currentInputs$sigma2 = currentInputs$sigma2 / self$siblings[[1]]$mu2
+      }
+      return(currentInputs)
+    }, 
 
-    updateFit = function() { # function to update currentFit
+    updateFit = function(currentInputs = NULL) { # function to update currentFit
       if (self$isLeaf) {
-        self$currentFit = self$fitFunction(X = self$X, Y = self$Y, sigma2 = self$sigma2, init = self$currentFit)
+        if (is.null(currentInputs)) { # when starting at mu_0
+          currentInputs = list(Y = self$Y, sigma2 = self$sigma2)
+        } else { # else, update inputs
+          currentInputs = self$updateCurrentInputs(currentInputs)
+        }
+        self$currentFit = self$fitFunction(self$X, currentInputs$Y, currentInputs$sigma2, self$currentFit)
       }
       if (!self$isRoot) {
         self$parent$updateMoments()
+        # now, revert to inputs at parent
+        if (self$parent$operator == "+") {
+          currentInputs$Y = currentInputs$Y + self$siblings[[1]]$mu1
+          currentInputs$sigma2 = currentInputs$sigma2
+        } else {
+          currentInputs$Y = currentInputs$Y / (self$siblings[[1]]$mu1 / self$siblings[[1]]$mu2)
+          currentInputs$sigma2 = currentInputs$sigma2 * self$siblings[[1]]$mu2
+        }
       }
-      return(invisible(self))
+      return(currentInputs)
     },
 
     update_sigma2 = function() { # function to update sigma2
@@ -78,7 +107,8 @@ VEBBoostNode <- R6::R6Class(
       ELBOs[2] = self$root$ELBO
       i = 2
       while (abs(ELBOs[i] - ELBOs[i-1]) > tol) {
-        self$root$Do(function(x) try({x$updateFit()}, silent = T), traversal = 'post-order')
+        currentInputs = NULL
+        self$root$Do(function(x) currentInputs = x$updateFit(currentInputs), traversal = 'post-order')
         if (update_sigma2) {
           self$root$update_sigma2()
         }
@@ -527,10 +557,13 @@ VEBBoostNode <- R6::R6Class(
       }
       if (self$isLeaf) {
         return(private$.pred_mu1)
-      } else if (self$operator == "+") {
-        return(apply(do.call(cbind, lapply(self$children, function(x) x$pred_mu1)), MARGIN = 1, sum))
       } else {
-        return(apply(do.call(cbind, lapply(self$children, function(x) x$pred_mu1)), MARGIN = 1, prod))
+        children_pred_mu1 = lapply(self$children, function(x) x$pred_mu1)
+        if (self$operator == "+") {
+          return(children_pred_mu1[[1]] + children_pred_mu1[[2]])
+        } else {
+          return(children_pred_mu1[[1]] * children_pred_mu1[[2]])
+        }
       }
     },
 
@@ -546,9 +579,12 @@ VEBBoostNode <- R6::R6Class(
       if (self$isLeaf) {
         return(private$.pred_mu2)
       } else if (self$operator == "+") {
-        return(apply(do.call(cbind, lapply(self$children, function(x) x$pred_mu2)), MARGIN = 1, sum) + 2*apply(do.call(cbind, lapply(self$children, function(x) x$pred_mu1)), MARGIN = 1, prod))
+        children_pred_mu1 = lapply(self$children, function(x) x$pred_mu1)
+        children_pred_mu2 = lapply(self$children, function(x) x$pred_mu2)
+        return(children_pred_mu2[[1]] + children_pred_mu2[[2]] + (2 * children_pred_mu1[[1]] * children_pred_mu1[[2]]))
       } else {
-        return(apply(do.call(cbind, lapply(self$children, function(x) x$pred_mu2)), MARGIN = 1, prod))
+        children_pred_mu2 = lapply(self$children, function(x) x$pred_mu2)
+        return(children_pred_mu2[[1]] * children_pred_mu2[[2]])
       }
     }
   ),
