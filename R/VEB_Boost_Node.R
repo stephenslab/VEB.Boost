@@ -80,7 +80,7 @@ VEBBoostNode <- R6::R6Class(
         } else { # else, update inputs
           currentInputs = self$updateCurrentInputs(currentInputs)
         }
-        self$currentFit = self$fitFunction(X = self$X, Y = currentInputs$Y, sigma2 = currentInputs$sigma2, init = self$currentFit)
+        self$currentFit = self$fitFunction(self$X, currentInputs$Y, currentInputs$sigma2, self$currentFit)
       }
       if (!self$isRoot) {
         self$parent$updateMoments()
