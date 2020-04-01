@@ -558,11 +558,11 @@ VEBBoostNode <- R6::R6Class(
       if (self$isLeaf) {
         return(private$.pred_mu1)
       } else {
-        children_pred_mu1 = sapply(self$children, function(x) x$pred_mu1)
+        children_pred_mu1 = lapply(self$children, function(x) x$pred_mu1)
         if (self$operator == "+") {
-          return(children_pred_mu1[, 1] + children_pred_mu1[, 2])
+          return(children_pred_mu1[[1]] + children_pred_mu1[[2]])
         } else {
-          return(children_pred_mu1[, 1] * children_pred_mu1[, 2])
+          return(children_pred_mu1[[1]] * children_pred_mu1[[2]])
         }
       }
     },
@@ -579,12 +579,12 @@ VEBBoostNode <- R6::R6Class(
       if (self$isLeaf) {
         return(private$.pred_mu2)
       } else if (self$operator == "+") {
-        children_pred_mu1 = sapply(self$children, function(x) x$pred_mu1)
-        children_pred_mu2 = sapply(self$children, function(x) x$pred_mu2)
-        return(children_pred_mu2[, 1] + children_pred_mu2[, 2] + (2 * children_pred_mu1[, 1] * children_pred_mu1[, 2]))
+        children_pred_mu1 = lapply(self$children, function(x) x$pred_mu1)
+        children_pred_mu2 = lapply(self$children, function(x) x$pred_mu2)
+        return(children_pred_mu2[[1]] + children_pred_mu2[[2]] + (2 * children_pred_mu1[[1]] * children_pred_mu1[[2]]))
       } else {
-        children_pred_mu2 = sapply(self$children, function(x) x$pred_mu2)
-        return(children_pred_mu2[, 1] * children_pred_mu2[, 2])
+        children_pred_mu2 = lapply(self$children, function(x) x$pred_mu2)
+        return(children_pred_mu2[[1]] * children_pred_mu2[[2]])
       }
     }
   ),
