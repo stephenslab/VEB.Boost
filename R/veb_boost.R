@@ -56,6 +56,46 @@
 #'
 #'
 #' @return A \code{VEB_Boost_Node} object with the fit
+#' 
+#' 
+#' @examples
+#' 
+#' set.seed(1)
+#' n = 1000
+#' p = 1000
+#' X = matrix(runif(n * p), nrow = n, ncol = p)
+#' Y = rnorm(n, 5*sin(3*X[, 1]) + 2*(X[, 2]^2) + 3*X[, 3]*X[, 4])
+#' predFn = function(X, fit, moment = c(1, 2)) {
+#'   # For input X and list `fit` returned from fitFn (encoding the variational posterior for b), computes either the 1st or 2nd 
+#'   # posterior moments of the response (depending on if `moment` is 1 or 2)
+#'   if (moment == 1) {
+#'     res = E_fit[Xb]
+#'   } else {
+#'     res = E_fit[(Xb)^2]
+#'   }
+#'   return(res)
+#' }
+#' fitFn = function(X, Y, sigma2, init) {
+#'   # For a given prior g(b), a function that approximates the posterior of b, q(b), using Variational Inference
+#'   fit = list(whatever is needed to encode the variational posterior)
+#'   KL_div = D_KL(q || g) # KL divergence from variational posterior to prior
+#'   mu1 = predFn(X, fit, 1)
+#'   mu2 = predFn(X, fit, 2)
+#'   # add mu1, mu2, and KL_div to the fit, MUST BE CALLED $mu1, $mu1, and $KL_div
+#'   fit$mu1 = mu1
+#'   fit$mu2 = mu2
+#'   fit$KL_div = KL_div
+#'   return(fit)
+#' }
+#' constCheckFn = function(fit) {
+#'   # For a given `fit`, returns TRUE if the variational posterior is close enough to a constant, else FALSE
+#'   if (fit is close to constant) {
+#'     return(TRUE)
+#'   } else {
+#'     return(FALSE)
+#'   }
+#' }
+#' veb.fit = veb_boost(list(X), Y, fitFn, predFn, constCheckFn, family = "gaussian")
 #'
 #' @export
 #'
@@ -198,13 +238,69 @@ veb_boost = function(X, Y, fitFunctions, predFunctions, constCheckFunctions,
 }
 
 
-#' wrapper for using SER w/ stumps
+#' Wrapper for using SER w/ stumps
+#' 
+#' @details
+#'
+#' This function performs VEB-Boosting, where the prior to be used is the SER prior, and our predictors are either
+#' i) the linear terms of X;
+#' ii) the stumps made from the columns of X; or
+#' iii) Both (i) and (ii)
+#' 
+#' @param X An (n x p) numeric matrix to be used as the predictors (currently, this wrapper forces all nodes to use the same X)
+#' 
+#' @param Y is a numeric vector response
+#' 
+#' @param include_linear is a logical indicator specifying whether we should include linear terms from X
+#' 
+#' @param include_stumps is a logical indicator specifying whether we should include stumps terms from X
+#' 
+#' @param num_cuts is a whole number specifying how many cuts to make when making the stumps terms.
+#' We use the quantiles from each predictor when making the stumps splits, using `num-cuts` of them.
+#' If `num_cuts = NULL`, then all values of the variables are used as split points.
+#' 
+#' @return A \code{VEB_Boost_Node} object with the fit
+#'
+#' @examples 
+#' set.seed(1)
+#' n = 1000
+#' p = 1000
+#' X = matrix(runif(n * p), nrow = n, ncol = p)
+#' Y = rnorm(n, 5*sin(3*X[, 1]) + 2*(X[, 2]^2) + 3*X[, 3]*X[, 4])
+#' veb.stumps.fit = veb_boost_stumps(X, Y, include_linear = TRUE, family = "gaussian")
+#' 
 #' @export
-veb_boost_stumps = function(X, Y, k = 1, growMode = "+*", changeToConstant = TRUE, include_linear = TRUE, num_cuts = 100, family = c("gaussian", "binomial", "multinomial"), tol = length(Y) / 10000, mc.cores = 1) {
-  cuts = apply(X, MARGIN = 2, function(col) quantile(col, probs = seq(from = 0, to = 1, length.out = num_cuts)))
-  X_stumps = make_stumps_matrix(X, include_linear, sapply(1:ncol(cuts), function(i) list(cuts[, i])))
+#' 
 
+veb_boost_stumps = function(X, Y, include_linear = TRUE, include_stumps = TRUE, num_cuts = 100, ...) {
+  ### Check Inputs ###
+  # Check logicals
+  if (!(include_linear %in% c(TRUE, FALSE))) {
+    stop("'include_linear' must be either TRUE or FALSE")
+  }
+  if (!(include_stumps %in% c(TRUE, FALSE))) {
+    stop("'include_stumps' must be either TRUE or FALSE")
+  }
+  # Make sure at least one include is true
+  if (!(include_linear | include_stumps)) {
+    stop("At least one of 'include_linear' or 'include_stumps' must be TRUE")
+  }
+  # Make sure num_cuts is a positive whole number
+  if ((num_cuts < 1) || (num_cuts %% 1 != 0)) {
+    stop("'num_cuts' must be a positive whole number")
+  }
+  
+  # Make stumps matrix
+  if (is.null(num_cuts)) {
+    cuts = NULL
+  } else {
+    cuts = apply(X, MARGIN = 2, function(col) quantile(col, probs = seq(from = 0, to = 1, length.out = num_cuts)))
+    cuts = sapply(1:ncol(cuts), function(i) list(cuts[, i]))
+  }
+  X_stumps = make_stumps_matrix(X, include_linear, include_stumps, cuts)
+
+  # Run
   return(veb_boost(X = list(X_stumps), Y = Y,
                    fitFunctions = fitFnSusieStumps, predFunctions = predFnSusieStumps, constCheckFunctions = constCheckFnSusieStumps,
-                   k = k, growMode = growMode, changeToConstant = changeToConstant, family = family, tol = tol, mc.cores = mc.cores))
+                   ...))
 }

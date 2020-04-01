@@ -78,3 +78,43 @@ to the posterior distribution at each node in turn.
 
 We start with the arithmetic tree structure \deqn{T(\mu_1, \dots, \mu_L) = \sum_{i=1}^k \prod_{j=1}^{d_k} \mu_{i, j}}
 }
+\examples{
+
+set.seed(1)
+n = 1000
+p = 1000
+X = matrix(runif(n * p), nrow = n, ncol = p)
+Y = rnorm(n, 5*sin(3*X[, 1]) + 2*(X[, 2]^2) + 3*X[, 3]*X[, 4])
+predFn = function(X, fit, moment = c(1, 2)) {
+  # For input X and list `fit` returned from fitFn (encoding the variational posterior for b), computes either the 1st or 2nd 
+  # posterior moments of the response (depending on if `moment` is 1 or 2)
+  if (moment == 1) {
+    res = E_fit[Xb]
+  } else {
+    res = E_fit[(Xb)^2]
+  }
+  return(res)
+}
+fitFn = function(X, Y, sigma2, init) {
+  # For a given prior g(b), a function that approximates the posterior of b, q(b), using Variational Inference
+  fit = list(whatever is needed to encode the variational posterior)
+  KL_div = D_KL(q || g) # KL divergence from variational posterior to prior
+  mu1 = predFn(X, fit, 1)
+  mu2 = predFn(X, fit, 2)
+  # add mu1, mu2, and KL_div to the fit, MUST BE CALLED $mu1, $mu1, and $KL_div
+  fit$mu1 = mu1
+  fit$mu2 = mu2
+  fit$KL_div = KL_div
+  return(fit)
+}
+constCheckFn = function(fit) {
+  # For a given `fit`, returns TRUE if the variational posterior is close enough to a constant, else FALSE
+  if (fit is close to constant) {
+    return(TRUE)
+  } else {
+    return(FALSE)
+  }
+}
+veb.fit = veb_boost(list(X), Y, fitFn, predFn, constCheckFn, family = "gaussian")
+
+}

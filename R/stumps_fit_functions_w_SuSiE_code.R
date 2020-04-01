@@ -67,7 +67,7 @@ is.tfg_matrix=function(X){
 # also change Xtrain to be a list (allows for different lengths of breaks)
 # include_linear now supports a logical vector input with the same length as ncol(X)
 # for those entries that are TRUE, it includes those variables as linear terms
-make_stumps_matrix = function(X, include_linear, Xtrain=NULL){
+make_stumps_matrix = function(X, include_linear, include_stumps, Xtrain=NULL){
   if(is.null(Xtrain)){Xtrain = lapply(1:ncol(X), function(i) X[, i])}
 
   if (length(include_linear) == 1) { # change include_linear to be a logical vector
@@ -85,8 +85,13 @@ make_stumps_matrix = function(X, include_linear, Xtrain=NULL){
     attr(X_linear, "X2") <- X_linear2
     xl=c(xl,list(X_linear))
   }
+  
+  if (include_stumps) {
+    for(i in 1:ncol(X)){
+      xl= c(xl,list(make_tfg_matrix(X[,i],Xtrain[[i]])))
+      }
+  }
 
-  for(i in 1:ncol(X)){xl= c(xl,list(make_tfg_matrix(X[,i],Xtrain[[i]])))}
   return(xl)
 }
 

@@ -2,21 +2,48 @@
 % Please edit documentation in R/veb_boost.R
 \name{veb_boost_stumps}
 \alias{veb_boost_stumps}
-\title{wrapper for using SER w/ stumps}
+\title{Wrapper for using SER w/ stumps}
 \usage{
 veb_boost_stumps(
   X,
   Y,
-  k = 1,
-  growMode = "+*",
-  changeToConstant = TRUE,
   include_linear = TRUE,
+  include_stumps = TRUE,
   num_cuts = 100,
-  family = c("gaussian", "binomial", "multinomial"),
-  tol = length(Y)/10000,
-  mc.cores = 1
+  ...
 )
 }
+\arguments{
+\item{X}{An (n x p) numeric matrix to be used as the predictors (currently, this wrapper forces all nodes to use the same X)}
+
+\item{Y}{is a numeric vector response}
+
+\item{include_linear}{is a logical indicator specifying whether we should include linear terms from X}
+
+\item{include_stumps}{is a logical indicator specifying whether we should include stumps terms from X}
+
+\item{num_cuts}{is a whole number specifying how many cuts to make when making the stumps terms.
+We use the quantiles from each predictor when making the stumps splits, using `num-cuts` of them.
+If `num_cuts = NULL`, then all values of the variables are used as split points.}
+}
+\value{
+A \code{VEB_Boost_Node} object with the fit
+}
 \description{
-wrapper for using SER w/ stumps
+Wrapper for using SER w/ stumps
+}
+\details{
+This function performs VEB-Boosting, where the prior to be used is the SER prior, and our predictors are either
+i) the linear terms of X;
+ii) the stumps made from the columns of X; or
+iii) Both (i) and (ii)
+}
+\examples{
+set.seed(1)
+n = 1000
+p = 1000
+X = matrix(runif(n * p), nrow = n, ncol = p)
+Y = rnorm(n, 5*sin(3*X[, 1]) + 2*(X[, 2]^2) + 3*X[, 3]*X[, 4])
+veb.stumps.fit = veb_boost_stumps(X, Y, include_linear = TRUE, family = "gaussian")
+
 }
