@@ -25,6 +25,8 @@ veb_boost_stumps(
 \item{num_cuts}{is a whole number specifying how many cuts to make when making the stumps terms.
 We use the quantiles from each predictor when making the stumps splits, using `num-cuts` of them.
 If `num_cuts = NULL`, then all values of the variables are used as split points.}
+
+\item{...}{Other arguments to be passed to `veb_boost`}
 }
 \value{
 A \code{VEB_Boost_Node} object with the fit

@@ -65,8 +65,9 @@
 #' p = 1000
 #' X = matrix(runif(n * p), nrow = n, ncol = p)
 #' Y = rnorm(n, 5*sin(3*X[, 1]) + 2*(X[, 2]^2) + 3*X[, 3]*X[, 4])
+#' 
+#' For input X and list `fit` returned from fitFn (encoding the variational posterior for b), computes either the 1st or 2nd 
 #' predFn = function(X, fit, moment = c(1, 2)) {
-#'   # For input X and list `fit` returned from fitFn (encoding the variational posterior for b), computes either the 1st or 2nd 
 #'   # posterior moments of the response (depending on if `moment` is 1 or 2)
 #'   if (moment == 1) {
 #'     res = E_fit[Xb]
@@ -75,8 +76,9 @@
 #'   }
 #'   return(res)
 #' }
+#' 
+#' For a given prior g(b), a function that approximates the posterior of b, q(b), using Variational Inference
 #' fitFn = function(X, Y, sigma2, init) {
-#'   # For a given prior g(b), a function that approximates the posterior of b, q(b), using Variational Inference
 #'   fit = list(whatever is needed to encode the variational posterior)
 #'   KL_div = D_KL(q || g) # KL divergence from variational posterior to prior
 #'   mu1 = predFn(X, fit, 1)
@@ -87,8 +89,9 @@
 #'   fit$KL_div = KL_div
 #'   return(fit)
 #' }
+#' 
+#' For a given `fit`, returns TRUE if the variational posterior is close enough to a constant, else FALSE
 #' constCheckFn = function(fit) {
-#'   # For a given `fit`, returns TRUE if the variational posterior is close enough to a constant, else FALSE
 #'   if (fit is close to constant) {
 #'     return(TRUE)
 #'   } else {
@@ -258,6 +261,8 @@ veb_boost = function(X, Y, fitFunctions, predFunctions, constCheckFunctions,
 #' @param num_cuts is a whole number specifying how many cuts to make when making the stumps terms.
 #' We use the quantiles from each predictor when making the stumps splits, using `num-cuts` of them.
 #' If `num_cuts = NULL`, then all values of the variables are used as split points.
+#' 
+#' @param ... Other arguments to be passed to `veb_boost`
 #' 
 #' @return A \code{VEB_Boost_Node} object with the fit
 #'
