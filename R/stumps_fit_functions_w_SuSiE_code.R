@@ -81,6 +81,8 @@ make_stumps_matrix = function(X, include_linear, Xtrain=NULL){
     attr(X_linear,"ncol") <- ncol(X_linear)
     attr(X_linear,"scaled:center") <- rep(0,ncol(X_linear))
     attr(X_linear,"scaled:scale") <- rep(1,ncol(X_linear))
+    X_linear2 = X_linear^2
+    attr(X_linear, "X2") <- X_linear2
     xl=c(xl,list(X_linear))
   }
 
@@ -131,7 +133,7 @@ compute_X2b = function(X, b, X_avg = 0) {
       # X is boolean matrix, so X^2 = X
       return(compute_Xb(X, b) - 2*compute_Xb(X, b*X_avg) + sum(X_avg^2 * b))
     } else {
-      return(compute_Xb(X^2, b) - 2*compute_Xb(X, b*X_avg) + sum(X_avg^2 * b))
+      return(compute_Xb(attr(X, "X2"), b) - 2*compute_Xb(X, b*X_avg) + sum(X_avg^2 * b))
     }
   }
 }
@@ -147,7 +149,7 @@ compute_X2ty = function(X, y, X_avg = 0) {
       # X is boolean matrix, so X^2 = X
       return(as.numeric(compute_Xty(X, y)) * (1 - 2*X_avg) + (X_avg^2 * sum(y)))
     } else {
-      return(as.numeric(compute_Xty(X^2, y) - 2*compute_Xty(X, y)*X_avg + (X_avg^2 * sum(y))))
+      return(as.numeric(compute_Xty(attr(X, "X2"), y) - 2*compute_Xty(X, y)*X_avg + (X_avg^2 * sum(y))))
     }
   }
 }
