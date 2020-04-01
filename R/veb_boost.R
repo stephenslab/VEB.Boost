@@ -241,7 +241,7 @@ veb_boost = function(X, Y, fitFunctions, predFunctions, constCheckFunctions,
 }
 
 
-#' Wrapper for using SER w/ stumps
+#' Wrapper for using VEB-Boost with the SER prior w/ stumps and/or linear terms
 #' 
 #' @details
 #'

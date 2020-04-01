@@ -2,7 +2,7 @@
 % Please edit documentation in R/veb_boost.R
 \name{veb_boost_stumps}
 \alias{veb_boost_stumps}
-\title{Wrapper for using SER w/ stumps}
+\title{Wrapper for using VEB-Boost with the SER prior w/ stumps and/or linear terms}
 \usage{
 veb_boost_stumps(
   X,
@@ -32,7 +32,7 @@ If `num_cuts = NULL`, then all values of the variables are used as split points.
 A \code{VEB_Boost_Node} object with the fit
 }
 \description{
-Wrapper for using SER w/ stumps
+Wrapper for using VEB-Boost with the SER prior w/ stumps and/or linear terms
 }
 \details{
 This function performs VEB-Boosting, where the prior to be used is the SER prior, and our predictors are either
