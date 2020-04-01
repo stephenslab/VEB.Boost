@@ -185,9 +185,15 @@ veb_boost = function(X, Y, fitFunctions, predFunctions, constCheckFunctions,
 
     # if growing tree, continue w/ growing tree & fitting to convergence
     if (growTree) {
+      if (verbose) {
+        cat(paste("ELBO: ", round(mu$ELBO, 3), sep = ""))
+        cat("\n")
+      }
+      
       learner = mu$convergeFitAll(tol = tol, update_sigma2 = update_sigma2, growMode = growMode, changeToConstant = changeToConstant, verbose = FALSE)
 
-      while ((abs(tail(tail(learner$ELBO_progress, 1)[[1]], 1) - tail(tail(learner$ELBO_progress, 2)[[1]], 1)) > tol) && (length(Traverse(learner, filterFun = function(node) node$isLeaf & !node$isLocked)) > 0)) {
+      while ((abs(tail(tail(learner$ELBO_progress, 1)[[1]], 1) - tail(tail(learner$ELBO_progress, 2)[[1]], 1)) > tol) && 
+             (length(Traverse(learner, filterFun = function(node) node$isLeaf & !node$isLocked)) > 0)) {
         if (verbose) {
           cat(paste("ELBO: ", round(learner$ELBO, 3), sep = ""))
           cat("\n")
@@ -223,6 +229,11 @@ veb_boost = function(X, Y, fitFunctions, predFunctions, constCheckFunctions,
 
     # if growing tree, continue w/ growing tree & fitting to convergence
     if (growTree) {
+      if (verbose) {
+        cat(paste("ELBO: ", round(learner_multiclass$ELBO, 3), sep = ""))
+        cat("\n")
+      }
+      
       learner_multiclass = learner_multiclass$convergeFitAll(tol = tol, growMode = growMode, changeToConstant = changeToConstant)
 
       while ((abs(tail(tail(learner_multiclass$ELBO_progress, 1)[[1]], 1) - tail(tail(learner_multiclass$ELBO_progress, 2)[[1]], 1)) > tol) &&
