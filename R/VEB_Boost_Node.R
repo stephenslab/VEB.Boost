@@ -583,7 +583,7 @@ VEBBoostNode <- R6::R6Class(
       } else if (self$operator == "+") {
         children_pred_mu1 = do.call(cbind, lapply(self$children, function(x) x$pred_mu1))
         children_pred_mu2 = do.call(cbind, lapply(self$children, function(x) x$pred_mu2))
-        return(rowsums(children_pred_mu2) + 2*rowprods(children_pred_mu1)
+        return(rowsums(children_pred_mu2) + 2*rowprods(children_pred_mu1))
       } else {
         children_pred_mu2 = do.call(cbind, lapply(self$children, function(x) x$pred_mu2))
         return(rowprods(children_pred_mu2))
