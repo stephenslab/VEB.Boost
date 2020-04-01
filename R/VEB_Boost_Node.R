@@ -1,6 +1,4 @@
 #' @import data.tree
-#' @importFrom Rfast rowsums
-#' @importFrom Rfast rowprods
 
 ### Node Object ###
 
@@ -31,11 +29,11 @@ VEBBoostNode <- R6::R6Class(
         children_mu1 = sapply(self$children, function(x) x$mu1)
         children_mu2 = sapply(self$children, function(x) x$mu2)
         if (self$operator == "+") {
-          private$.mu1 = rowsums(children_mu1)
-          private$.mu2 = rowsums(children_mu2) + 2*rowprods(children_mu1)
+          private$.mu1 = children_mu1[, 1] + children_mu1[, 2]
+          private$.mu2 = children_mu2[, 1] + children_mu2[, 2] + (2 * children_mu1[, 1] * children_mu1[, 2])
         } else {
-          private$.mu1 = rowprods(children_mu1)
-          private$.mu2 = rowprods(children_mu2)
+          private$.mu1 = children_mu1[, 1] * children_mu1[, 2])
+          private$.mu2 = children_mu2[, 1] * children_mu2[, 2])
         }
       }
 
@@ -560,11 +558,11 @@ VEBBoostNode <- R6::R6Class(
       if (self$isLeaf) {
         return(private$.pred_mu1)
       } else {
-        children_pred_mu1 = do.call(cbind, lapply(self$children, function(x) x$pred_mu1))
+        children_pred_mu1 = sapply(self$children, function(x) x$pred_mu1)
         if (self$operator == "+") {
-          return(rowsums(children_pred_mu1))
+          return(children_pred_mu1[, 1] + children_pred_mu1[, 2])
         } else {
-          return(rowprods(children_pred_mu1))
+          return(children_pred_mu1[, 1] * children_pred_mu1[, 2])
         }
       }
     },
@@ -581,12 +579,12 @@ VEBBoostNode <- R6::R6Class(
       if (self$isLeaf) {
         return(private$.pred_mu2)
       } else if (self$operator == "+") {
-        children_pred_mu1 = do.call(cbind, lapply(self$children, function(x) x$pred_mu1))
-        children_pred_mu2 = do.call(cbind, lapply(self$children, function(x) x$pred_mu2))
-        return(rowsums(children_pred_mu2) + 2*rowprods(children_pred_mu1))
+        children_pred_mu1 = sapply(self$children, function(x) x$pred_mu1)
+        children_pred_mu2 = sapply(self$children, function(x) x$pred_mu2)
+        return(children_pred_mu2[, 1] + children_pred_mu2[, 2] + (2 * children_pred_mu1[, 1] * children_pred_mu1[, 2]))
       } else {
-        children_pred_mu2 = do.call(cbind, lapply(self$children, function(x) x$pred_mu2))
-        return(rowprods(children_pred_mu2))
+        children_pred_mu2 = sapply(self$children, function(x) x$pred_mu2)
+        return(children_pred_mu2[, 1] * children_pred_mu2[, 2])
       }
     }
   ),
