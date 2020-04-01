@@ -1,4 +1,6 @@
 #' @import data.tree
+#' @importFrom Rfast rowsums
+#' @importFrom Rfast rowprods
 
 ### Node Object ###
 
@@ -26,13 +28,14 @@ VEBBoostNode <- R6::R6Class(
 
     updateMoments = function() { # after updating the fit, pass changes to moments up to parent node
       if (!self$isLeaf) { # if not at a leaf, update moments
+        children_mu1 = sapply(self$children, function(x) x$mu1)
+        children_mu2 = sapply(self$children, function(x) x$mu2)
         if (self$operator == "+") {
-          children_mu1 = sapply(self$children, function(x) x$mu1)
-          private$.mu1 = as.numeric(apply(children_mu1, MARGIN = 1, sum))
-          private$.mu2 = as.numeric(apply(sapply(self$children, function(x) x$mu2), MARGIN = 1, sum) + 2*apply(children_mu1, MARGIN = 1, prod))
+          private$.mu1 = rowsums(children_mu1)
+          private$.mu2 = rowsums(children_mu2) + 2*rowprods(children_mu1)
         } else {
-          private$.mu1 = as.numeric(apply(sapply(self$children, function(x) x$mu1), MARGIN = 1, prod))
-          private$.mu2 = as.numeric(apply(sapply(self$children, function(x) x$mu2), MARGIN = 1, prod))
+          private$.mu1 = rowprods(children_mu1)
+          private$.mu2 = rowprods(children_mu2)
         }
       }
 
@@ -41,13 +44,14 @@ VEBBoostNode <- R6::R6Class(
 
     updateMomentsAll = function() { # after updating the fit, pass changes to moments up to internal nodes
       if (!self$isLeaf) { # if not at a leaf, update moments
+        children_mu1 = sapply(self$children, function(x) x$mu1)
+        children_mu2 = sapply(self$children, function(x) x$mu2)
         if (self$operator == "+") {
-          children_mu1 = sapply(self$children, function(x) x$mu1)
-          private$.mu1 = as.numeric(apply(children_mu1, MARGIN = 1, sum))
-          private$.mu2 = as.numeric(apply(sapply(self$children, function(x) x$mu2), MARGIN = 1, sum) + 2*apply(children_mu1, MARGIN = 1, prod))
+          private$.mu1 = rowsums(children_mu1)
+          private$.mu2 = rowsums(children_mu2) + 2*rowprods(children_mu1)
         } else {
-          private$.mu1 = as.numeric(apply(sapply(self$children, function(x) x$mu1), MARGIN = 1, prod))
-          private$.mu2 = as.numeric(apply(sapply(self$children, function(x) x$mu2), MARGIN = 1, prod))
+          private$.mu1 = rowprods(children_mu1)
+          private$.mu2 = rowprods(children_mu2)
         }
       }
       if (self$isRoot) { # if at root, stop
