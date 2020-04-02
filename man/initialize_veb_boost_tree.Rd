@@ -5,7 +5,7 @@
 \title{Initialize VEB-Boost Tree structure}
 \usage{
 initialize_veb_boost_tree(
-  Xs,
+  X,
   Y,
   k = 1,
   d = 1,
@@ -16,8 +16,7 @@ initialize_veb_boost_tree(
 )
 }
 \arguments{
-\item{Xs}{is a list of the prediction objects to be used (usually of length 1, i.e. all nodes use the same prediction object).
-Otherwise, it must be of length k (i.e. each term in the addition uses its own predictor object)}
+\item{X}{is a prediction objects to be used}
 
 \item{Y}{is a numeric vector response}
 
