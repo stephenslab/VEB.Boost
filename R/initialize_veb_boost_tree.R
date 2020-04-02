@@ -3,8 +3,7 @@
 #' Initializes a VEB-Boost tree object as the sum of products of nodes,
 #' where you can specify how many learners to add, and the multiplicative depth of each learner.
 #'
-#' @param Xs is a list of the prediction objects to be used (usually of length 1, i.e. all nodes use the same prediction object).
-#' Otherwise, it must be of length k (i.e. each term in the addition uses its own predictor object)
+#' @param X is a prediction objects to be used
 #'
 #' @param Y is a numeric vector response
 #'
@@ -23,7 +22,7 @@
 #'
 #' @param family is what family the response is
 
-initialize_veb_boost_tree = function(Xs, Y, k = 1, d = 1, fitFunctions = list(fitFnSusieStumps), predFunctions = list(predFnSusieStumps),
+initialize_veb_boost_tree = function(X, Y, k = 1, d = 1, fitFunctions = list(fitFnSusieStumps), predFunctions = list(predFnSusieStumps),
                                      constCheckFunctions = list(constCheckFnSusieStumps), family = c("gaussian", "binomial")) {
   family = match.arg(family)
   if (length(d) == 1) {
@@ -55,14 +54,8 @@ initialize_veb_boost_tree = function(Xs, Y, k = 1, d = 1, fitFunctions = list(fi
     }
   }
 
-  # now, add predictor object to nodes if needed
-  if (length(Xs) > 1) {
-    veb_boost_learner$Do(function(node) {
-      node$X = Xs[[as.numeric(gsub("mu_", "", node$name)) + 1]]}, filterFun = function(node) node$isLeaf, traversal = 'post-order')
-  } else {
-    veb_boost_learner$X = Xs[[1]]
-  }
-
+  # now, add predictor object to the root
+  veb_boost_learner$X = X
 
   # now, add multiplicative components, where left-most moments are initialized to 0, and others are initialized to 1 (to avoid infinite variance issue)
   base_learners = veb_boost_learner$leaves
