@@ -302,7 +302,7 @@ veb_boost_stumps = function(X, Y, include_linear = TRUE, include_stumps = TRUE, 
     stop("At least one of 'include_linear' or 'include_stumps' must be TRUE")
   }
   # Make sure num_cuts is a positive whole number
-  if (!is.null(num_cuts) || (num_cuts < 1) || (num_cuts %% 1 != 0)) {
+  if (!is.null(num_cuts) && ((num_cuts < 1) || (num_cuts %% 1 != 0))) {
     stop("'num_cuts' must be a positive whole number")
   }
   
