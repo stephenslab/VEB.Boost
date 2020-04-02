@@ -40,7 +40,7 @@ optimize_V = function(tau_no_V, nu, sigma2, prior_weights, V = 1) {
 #' By default br=t which allows breaks to occur between every data point. Note that internally duplicate elements of br are removed.
 #' @param order non-negative integer indicating order of trend filtering basis (0 is changepoint basis and is the only case we test and use)
 #' @keywords internal
-make_tfg_matrix = function(t,br=t,order=0){
+make_tfg_matrix = function(t, br = t, order = 0) {
   br = unique(sort(br))
   n = length(t) # number of data points
   p = length(br) + 1 # number of bins specified by breaks
@@ -59,37 +59,45 @@ make_tfg_matrix = function(t,br=t,order=0){
   return(X)
 }
 
-is.tfg_matrix=function(X){
-  ifelse(is.null(attr(X, "matrix.type")),FALSE,attr(X,"matrix.type")=="tfg_matrix")
+is.tfg_matrix=function(X) {
+  ifelse(is.null(attr(X, "matrix.type")), FALSE, attr(X, "matrix.type") == "tfg_matrix")
 }
 
 # over-write make_stumps_matrix to not rely on susieR::
 # also change Xtrain to be a list (allows for different lengths of breaks)
 # include_linear now supports a logical vector input with the same length as ncol(X)
 # for those entries that are TRUE, it includes those variables as linear terms
-make_stumps_matrix = function(X, include_linear, include_stumps, Xtrain=NULL){
-  if(is.null(Xtrain)){Xtrain = lapply(1:ncol(X), function(i) X[, i])}
+make_stumps_matrix = function(X, include_linear, include_stumps, Xtrain = NULL) {
+  if(is.null(Xtrain)){
+    Xtrain = lapply(1:ncol(X), function(i) X[, i])
+  }
 
   if (length(include_linear) == 1) { # change include_linear to be a logical vector
     include_linear = rep(include_linear, ncol(X))
   }
 
-  xl=list() # initialize
-  if(any(include_linear)){ #include X as a regular matrix first
+  xl = list() # initialize
+  if(any(include_linear)){ # include X as a regular matrix first
     X_linear = X[, include_linear]
-    attr(X_linear,"nrow") <- nrow(X_linear)
-    attr(X_linear,"ncol") <- ncol(X_linear)
-    attr(X_linear,"scaled:center") <- rep(0,ncol(X_linear))
-    attr(X_linear,"scaled:scale") <- rep(1,ncol(X_linear))
+    attr(X_linear, "nrow") <- nrow(X_linear)
+    attr(X_linear, "ncol") <- ncol(X_linear)
+    attr(X_linear, "scaled:center") <- rep(0, ncol(X_linear))
+    attr(X_linear, "scaled:scale") <- rep(1, ncol(X_linear))
     X_linear2 = X_linear^2
     attr(X_linear, "X2") <- X_linear2
-    xl=c(xl,list(X_linear))
+    xl = c(xl, list(X_linear))
   }
   
-  if (include_stumps) {
+  if (length(include_stumps) == 1) { # change include_stumps to be a logical vector
+    include_stumps = rep(include_stumps, ncol(X))
+  }
+  
+  if (any(include_stumps)) {
     for(i in 1:ncol(X)){
-      xl= c(xl,list(make_tfg_matrix(X[,i],Xtrain[[i]])))
+      if (include_stumps[i]) {
+        xl = c(xl, list(make_tfg_matrix(X[, i], Xtrain[[i]])))
       }
+    }
   }
 
   return(xl)

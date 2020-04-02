@@ -2,6 +2,7 @@
 
 export(veb_boost)
 export(veb_boost_stumps)
+import(R6)
 import(data.tree)
 importFrom(Matrix,crossprod)
 importFrom(Matrix,t)

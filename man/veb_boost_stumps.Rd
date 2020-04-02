@@ -18,12 +18,16 @@ veb_boost_stumps(
 
 \item{Y}{is a numeric vector response}
 
-\item{include_linear}{is a logical indicator specifying whether we should include linear terms from X}
+\item{include_linear}{is a logical of length 1 or p specifying which columns of X we should include as linear terms.
+If the length is 1, this value gets recycled for all columns of X.}
 
-\item{include_stumps}{is a logical indicator specifying whether we should include stumps terms from X}
+\item{include_stumps}{is a logical of length 1 or p specifying which columns of X we should include as stump terms
+If the length is 1, this value gets recycled for all columns of X.}
 
-\item{num_cuts}{is a whole number specifying how many cuts to make when making the stumps terms.
-We use the quantiles from each predictor when making the stumps splits, using `num-cuts` of them.
+\item{num_cuts}{is a whole number of length 1 or p specifying how many cuts to make when making the stumps terms.
+If the length is 1, this value gets recycled for all columns of X.
+For entries corresponding to the indices where `include_stumps` is FALSE, these values are ignored.
+We use the quantiles from each predictor when making the stumps splits, using `num_cuts` of them.
 If `num_cuts = NULL`, then all values of the variables are used as split points.}
 
 \item{...}{Other arguments to be passed to `veb_boost`}

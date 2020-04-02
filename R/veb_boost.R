@@ -265,12 +265,16 @@ veb_boost = function(X, Y, fitFunctions, predFunctions, constCheckFunctions,
 #' 
 #' @param Y is a numeric vector response
 #' 
-#' @param include_linear is a logical indicator specifying whether we should include linear terms from X
+#' @param include_linear is a logical of length 1 or p specifying which columns of X we should include as linear terms.
+#' If the length is 1, this value gets recycled for all columns of X.
 #' 
-#' @param include_stumps is a logical indicator specifying whether we should include stumps terms from X
+#' @param include_stumps is a logical of length 1 or p specifying which columns of X we should include as stump terms
+#' If the length is 1, this value gets recycled for all columns of X.
 #' 
-#' @param num_cuts is a whole number specifying how many cuts to make when making the stumps terms.
-#' We use the quantiles from each predictor when making the stumps splits, using `num-cuts` of them.
+#' @param num_cuts is a whole number of length 1 or p specifying how many cuts to make when making the stumps terms.
+#' If the length is 1, this value gets recycled for all columns of X.
+#' For entries corresponding to the indices where `include_stumps` is FALSE, these values are ignored.
+#' We use the quantiles from each predictor when making the stumps splits, using `num_cuts` of them.
 #' If `num_cuts = NULL`, then all values of the variables are used as split points.
 #' 
 #' @param ... Other arguments to be passed to `veb_boost`
@@ -291,18 +295,18 @@ veb_boost = function(X, Y, fitFunctions, predFunctions, constCheckFunctions,
 veb_boost_stumps = function(X, Y, include_linear = TRUE, include_stumps = TRUE, num_cuts = 100, ...) {
   ### Check Inputs ###
   # Check logicals
-  if (!(include_linear %in% c(TRUE, FALSE))) {
+  if (!(all(include_linear %in% c(TRUE, FALSE)))) {
     stop("'include_linear' must be either TRUE or FALSE")
   }
-  if (!(include_stumps %in% c(TRUE, FALSE))) {
+  if (!(all(include_stumps %in% c(TRUE, FALSE)))) {
     stop("'include_stumps' must be either TRUE or FALSE")
   }
   # Make sure at least one include is true
-  if (!(include_linear | include_stumps)) {
+  if (!(any(include_linear) | any(include_stumps))) {
     stop("At least one of 'include_linear' or 'include_stumps' must be TRUE")
   }
   # Make sure num_cuts is a positive whole number
-  if (!is.null(num_cuts) && ((num_cuts < 1) || (num_cuts %% 1 != 0))) {
+  if (!is.null(num_cuts) && (any(num_cuts < 1) || any(num_cuts %% 1 != 0))) {
     stop("'num_cuts' must be a positive whole number")
   }
   
@@ -310,8 +314,10 @@ veb_boost_stumps = function(X, Y, include_linear = TRUE, include_stumps = TRUE, 
   if (is.null(num_cuts)) {
     cuts = NULL
   } else {
-    cuts = apply(X, MARGIN = 2, function(col) quantile(col, probs = seq(from = 0, to = 1, length.out = num_cuts)))
-    cuts = sapply(1:ncol(cuts), function(i) list(cuts[, i]))
+    if (length(num_cuts) == 1) {
+      num_cuts = rep(num_cuts, ncol(X))
+    }
+    cuts = lapply(1:ncol(X), function(j) quantile(X[, j], probs = seq(from = 0, to = 1, length.out = num_cuts[j])))
   }
   X_stumps = make_stumps_matrix(X, include_linear, include_stumps, cuts)
 
