@@ -331,7 +331,7 @@ veb_boost_stumps = function(X, Y, include_linear = TRUE, include_stumps = TRUE, 
   X_stumps = make_stumps_matrix(X, include_linear, include_stumps, cuts)
 
   # Run
-  return(veb_boost(X = list(X_stumps), Y = Y,
+  return(veb_boost(X = X_stumps, Y = Y,
                    fitFunctions = fitFnSusieStumps, predFunctions = predFnSusieStumps, constCheckFunctions = constCheckFnSusieStumps,
                    ...))
 }
