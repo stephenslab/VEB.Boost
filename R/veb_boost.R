@@ -315,7 +315,7 @@ veb_boost_stumps = function(X, Y, include_linear = TRUE, include_stumps = TRUE, 
   }
   
   # Make stumps matrix
-  if (is.infinite(num_cuts)) {
+  if (all(is.infinite(num_cuts))) {
     cuts = NULL
   } else {
     if (length(num_cuts) == 1) {

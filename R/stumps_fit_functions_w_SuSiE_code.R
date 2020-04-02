@@ -96,7 +96,7 @@ make_stumps_matrix = function(X, include_linear, include_stumps, Xtrain = NULL) 
     for(i in 1:ncol(X)){
       if (include_stumps[i]) {
         if (is.null(Xtrain[[i]])) {
-          Xtrain = X[, i]
+          Xtrain[[i]] = X[, i]
         }
         xl = c(xl, list(make_tfg_matrix(X[, i], Xtrain[[i]])))
       }
