@@ -118,6 +118,6 @@ constCheckFn = function(fit) {
     return(FALSE)
   }
 }
-veb.fit = veb_boost(list(X), Y, fitFn, predFn, constCheckFn, family = "gaussian")
+veb.fit = veb_boost(X, Y, fitFn, predFn, constCheckFn, family = "gaussian")
 
 }

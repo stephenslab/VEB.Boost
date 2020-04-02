@@ -98,7 +98,7 @@
 #'     return(FALSE)
 #'   }
 #' }
-#' veb.fit = veb_boost(list(X), Y, fitFn, predFn, constCheckFn, family = "gaussian")
+#' veb.fit = veb_boost(X, Y, fitFn, predFn, constCheckFn, family = "gaussian")
 #'
 #' @export
 #'
@@ -125,10 +125,6 @@ veb_boost = function(X, Y, fitFunctions, predFunctions, constCheckFunctions,
   }
   if ((d < 1) || (d %% 1 != 0)) {
     stop("'d' must be a positive whole number")
-  }
-  # Predictors
-  if ((class(X) != "list") || !(length(X) %in% c(1, k))) {
-    stop("'X' must be a list of length 1 or k")
   }
   # Functions
   if (class(fitFunctions) == "function") {
@@ -173,7 +169,7 @@ veb_boost = function(X, Y, fitFunctions, predFunctions, constCheckFunctions,
   ### Run Gaussian/Binomial Cases ###
   if (family %in% c("gaussian", "binomial")) {
     # initialize tree
-    mu = initialize_veb_boost_tree(Xs = X, Y = Y, k = k, d = d, fitFunctions = fitFunctions, predFunctions = predFunctions,
+    mu = initialize_veb_boost_tree(X = X, Y = Y, k = k, d = d, fitFunctions = fitFunctions, predFunctions = predFunctions,
                                                constCheckFunctions = constCheckFunctions, family = family)
     if (family == "gaussian") {
       mu$sigma2 = var(Y)
@@ -211,13 +207,11 @@ veb_boost = function(X, Y, fitFunctions, predFunctions, constCheckFunctions,
     learner_multiclass$Y = Y
     learner_multiclass$mc.cores = mc.cores
     learner_multiclass$classes = classes
-    if (length(X) == 1) { # if the same predictor object is to be used for all nodes, just store once in the multi-class learner
-      learner_multiclass$X = X[[1]]
-      X = NULL
-    }
+    learner_multiclass$X = X
+
     learnerList = list()
     for (j in 1:length(classes)) { # add learners to learnerList
-      learner = initialize_veb_boost_tree(Xs = X, Y = 1 * (Y == classes[j]), k = k, d = d, fitFunctions = fitFunctions, predFunctions = predFunctions,
+      learner = initialize_veb_boost_tree(X = NULL, Y = 1 * (Y == classes[j]), k = k, d = d, fitFunctions = fitFunctions, predFunctions = predFunctions,
                                 constCheckFunctions = constCheckFunctions, family = "binomial")
       learnerList = c(learnerList, learner)
     }
