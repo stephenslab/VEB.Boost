@@ -28,7 +28,7 @@ If the length is 1, this value gets recycled for all columns of X.}
 If the length is 1, this value gets recycled for all columns of X.
 For entries corresponding to the indices where `include_stumps` is FALSE, these values are ignored.
 We use the quantiles from each predictor when making the stumps splits, using `num_cuts` of them.
-If `num_cuts = NULL`, then all values of the variables are used as split points.}
+If `num_cuts = Inf`, then all values of the variables are used as split points.}
 
 \item{...}{Other arguments to be passed to `veb_boost`}
 }

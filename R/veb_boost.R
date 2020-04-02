@@ -275,7 +275,7 @@ veb_boost = function(X, Y, fitFunctions, predFunctions, constCheckFunctions,
 #' If the length is 1, this value gets recycled for all columns of X.
 #' For entries corresponding to the indices where `include_stumps` is FALSE, these values are ignored.
 #' We use the quantiles from each predictor when making the stumps splits, using `num_cuts` of them.
-#' If `num_cuts = NULL`, then all values of the variables are used as split points.
+#' If `num_cuts = Inf`, then all values of the variables are used as split points.
 #' 
 #' @param ... Other arguments to be passed to `veb_boost`
 #' 
@@ -294,30 +294,45 @@ veb_boost = function(X, Y, fitFunctions, predFunctions, constCheckFunctions,
 
 veb_boost_stumps = function(X, Y, include_linear = TRUE, include_stumps = TRUE, num_cuts = 100, ...) {
   ### Check Inputs ###
+  p = ncol(X)
   # Check logicals
   if (!(all(include_linear %in% c(TRUE, FALSE)))) {
     stop("'include_linear' must be either TRUE or FALSE")
   }
+  if (!(length(include_linear) %in% c(1, p))) {
+    stop("'include_linear' must have length 1 or ncol(X)")
+  }
   if (!(all(include_stumps %in% c(TRUE, FALSE)))) {
     stop("'include_stumps' must be either TRUE or FALSE")
+  }
+  if (!(length(include_stumps) %in% c(1, p))) {
+    stop("'include_stumps' must have length 1 or ncol(X)")
   }
   # Make sure at least one include is true
   if (!(any(include_linear) | any(include_stumps))) {
     stop("At least one of 'include_linear' or 'include_stumps' must be TRUE")
   }
   # Make sure num_cuts is a positive whole number
-  if (!is.null(num_cuts) && (any(num_cuts < 1) || any(num_cuts %% 1 != 0))) {
-    stop("'num_cuts' must be a positive whole number")
+  if (any(num_cuts < 1) || any(num_cuts[is.finite(num_cuts)] %% 1 != 0)) {
+    stop("'num_cuts' must be a positive whole number or Inf")
+  }
+  if (!(length(num_cuts) %in% c(1, p))) {
+    stop("'num_cuts' must have length 1 or ncol(X)")
   }
   
   # Make stumps matrix
-  if (is.null(num_cuts)) {
+  if (is.infinite(num_cuts)) {
     cuts = NULL
   } else {
     if (length(num_cuts) == 1) {
-      num_cuts = rep(num_cuts, ncol(X))
+      num_cuts = rep(num_cuts, p)
     }
-    cuts = lapply(1:ncol(X), function(j) quantile(X[, j], probs = seq(from = 0, to = 1, length.out = num_cuts[j])))
+    cuts = rep(list(NULL), p)
+    for (j in 1:p) {
+      if (is.finite(num_cuts)[j]) {
+        cuts[[j]] = quantile(X[, j], probs = seq(from = 0, to = 1, length.out = num_cuts[j]))
+      }
+    }
   }
   X_stumps = make_stumps_matrix(X, include_linear, include_stumps, cuts)
 
