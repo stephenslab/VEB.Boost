@@ -1,8 +1,9 @@
 #' @import data.tree
+#' @import R6
 
 ### Node Object ###
 
-VEBBoostNode <- R6::R6Class(
+VEBBoostNode <- R6Class(
   "VEBBoostNode",
   public = list(
     operator = NULL, # either "+" or "*" for internal nodes, NULL for terminal nodes
@@ -170,17 +171,6 @@ VEBBoostNode <- R6::R6Class(
     },
 
     lockLearners = function(growMode = c("+", "*", "+*"), changeToConstant = TRUE) { # lock learners that should be locked
-      # base_learners = Traverse(self$root, traversal = 'post-order', filterFun = function(x) x$isLeaf & !x$isLocked)
-      # for (learner in base_learners) { # change any near-constant leaf to a constant and seal it off
-      #   if (learner$isConstant) {
-      #     learner$isLocked = TRUE
-      #     learner$fitFunction = learner$.fitFnConstComp
-      #     learner$predFunction = learner$.predFnConstComp
-      #     learner$constCheckFunction = learner$.constCheckFnConstComp
-      #     learner$updateFit()
-      #     try({learner$updateMomentsAll()}, silent = T) # needed to avoid "attempt to apply non-function" error
-      #   }
-      # }
       self$root$Do(function(node) node$lockSelf(changeToConstant), filterFun = function(node) node$isLeaf & !node$isLocked, traversal ='post-order')
 
       base_learners = Traverse(self$root, filterFun = function(x) x$isLeaf & !x$isLocked)
@@ -188,7 +178,7 @@ VEBBoostNode <- R6::R6Class(
         if (learner$isRoot) { # if root, not locked, do this to avoid errors in next if statement
           next
         }
-        if (learner$siblings[[1]]$isLocked && ((growMode %in% c("+", "*")) || learner$parent$siblings[[1]]$isLocked)) {
+        if (learner$siblings[[1]]$isLocked && (((growMode %in% c("+", "*")) && (learner$parent$operator == growMode)) || learner$parent$siblings[[1]]$isLocked)) {
           learner$isLocked = TRUE
         }
       }
