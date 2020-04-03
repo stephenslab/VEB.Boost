@@ -259,6 +259,8 @@ veb_boost = function(X, Y, fitFunctions, predFunctions, constCheckFunctions,
 #' 
 #' @param Y is a numeric vector response
 #' 
+#' @param X_test is an (m X p) matrix to be used as the testing data. Posterior mean response is saved in the output's field `$pred_mu1`
+#' 
 #' @param include_linear is a logical of length 1 or p specifying which columns of X we should include as linear terms.
 #' If the length is 1, this value gets recycled for all columns of X.
 #' 
@@ -286,8 +288,15 @@ veb_boost = function(X, Y, fitFunctions, predFunctions, constCheckFunctions,
 #' @export
 #' 
 
-veb_boost_stumps = function(X, Y, include_linear = TRUE, include_stumps = TRUE, num_cuts = 100, ...) {
+veb_boost_stumps = function(X, Y, X_test = NULL, include_linear = TRUE, include_stumps = TRUE, num_cuts = 100, ...) {
   ### Check Inputs ###
+  # Check X
+  if (!is_valid_matrix(X)) {
+    stop("'X' must be a numeric matrix")
+  }
+  if (!is.null(X_test) && !is_valid_matrix(X_test)) {
+    stop("'X_test' must be a numeric matrix")
+  }
   p = ncol(X)
   # Check logicals
   if (!(all(include_linear %in% c(TRUE, FALSE)))) {
@@ -331,7 +340,15 @@ veb_boost_stumps = function(X, Y, include_linear = TRUE, include_stumps = TRUE, 
   X_stumps = make_stumps_matrix(X, include_linear, include_stumps, cuts)
 
   # Run
-  return(veb_boost(X = X_stumps, Y = Y,
-                   fitFunctions = fitFnSusieStumps, predFunctions = predFnSusieStumps, constCheckFunctions = constCheckFnSusieStumps,
-                   ...))
+  veb.fit = veb_boost(X = X_stumps, Y = Y,
+                      fitFunctions = fitFnSusieStumps, predFunctions = predFnSusieStumps, constCheckFunctions = constCheckFnSusieStumps,
+                      ...)
+  
+  # predict on test data, if any
+  if (!is.null(X_test)) {
+    X_test_stumps = make_stumps_matrix(X_test, include_linear, include_stumps, cuts)
+  }
+  veb.fit$predict.veb(X_test_stumps, 1)
+  
+  return(veb.fit)
 }

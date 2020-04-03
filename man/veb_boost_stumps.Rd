@@ -7,6 +7,7 @@
 veb_boost_stumps(
   X,
   Y,
+  X_test = NULL,
   include_linear = TRUE,
   include_stumps = TRUE,
   num_cuts = 100,
@@ -17,6 +18,8 @@ veb_boost_stumps(
 \item{X}{An (n x p) numeric matrix to be used as the predictors (currently, this wrapper forces all nodes to use the same X)}
 
 \item{Y}{is a numeric vector response}
+
+\item{X_test}{is an (m X p) matrix to be used as the testing data. Posterior mean response is saved in the output's field `$pred_mu1`}
 
 \item{include_linear}{is a logical of length 1 or p specifying which columns of X we should include as linear terms.
 If the length is 1, this value gets recycled for all columns of X.}
