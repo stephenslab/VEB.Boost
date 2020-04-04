@@ -1,17 +1,20 @@
+Encoding: UTF-8
+Type: Package
 Package: VEB.Boost
-Title: This package provides the functionality to perform VEB-Boosting.
 Version: 0.0.0.9008
+Date: 2020-04-04
+Title: This package provides the functionality to perform VEB-Boosting.
 Authors@R: 
     person(given = "Andrew",
            family = "Goldstein",
            role = c("aut", "cre"),
-           email = "andrewgoldstein@uchicago.edu",
-           comment = c(ORCID = "YOUR-ORCID-ID"))
+           email = "andrewgoldstein@uchicago.edu")
 Description: What the package does (one paragraph).
-License: What license it uses
-Encoding: UTF-8
-LazyData: true
+URL: https://github.com/stephenslab/mixsqp
+BugReports: https://github.com/stephenslab/mixsqp/issues
+License: MIT + file LICENSE
 RoxygenNote: 7.1.0
 Imports: data.tree, parallel, spatstat.utils, Matrix, R6
 Suggests: knitr, rmarkdown
 VignetteBuilder: knitr
+LazyData: true
