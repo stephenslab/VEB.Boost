@@ -59,14 +59,16 @@
 #' 
 #' 
 #' @examples
-#' 
+#'
+#' # Simulate data.
 #' set.seed(1)
 #' n = 1000
 #' p = 1000
 #' X = matrix(runif(n * p), nrow = n, ncol = p)
 #' Y = rnorm(n, 5*sin(3*X[, 1]) + 2*(X[, 2]^2) + 3*X[, 3]*X[, 4])
 #' 
-#' For input X and list `fit` returned from fitFn (encoding the variational posterior for b), computes either the 1st or 2nd 
+#' # For input X and list `fit` returned from fitFn (encoding the
+#' # variational posterior for b), computes either the 1st or 2nd 
 #' predFn = function(X, fit, moment = c(1, 2)) {
 #'   # posterior moments of the response (depending on if `moment` is 1 or 2)
 #'   if (moment == 1) {
@@ -77,7 +79,8 @@
 #'   return(res)
 #' }
 #' 
-#' For a given prior g(b), a function that approximates the posterior of b, q(b), using Variational Inference
+#' # For a given prior g(b), a function that approximates the posterior
+#' # of b, q(b), using Variational Inference
 #' fitFn = function(X, Y, sigma2, init) {
 #'   fit = list(whatever is needed to encode the variational posterior)
 #'   KL_div = D_KL(q || g) # KL divergence from variational posterior to prior
@@ -90,7 +93,8 @@
 #'   return(fit)
 #' }
 #' 
-#' For a given `fit`, returns TRUE if the variational posterior is close enough to a constant, else FALSE
+#' # For a given `fit`, returns TRUE if the variational posterior is
+#' # close enough to a constant, else FALSE
 #' constCheckFn = function(fit) {
 #'   if (fit is close to constant) {
 #'     return(TRUE)
@@ -98,6 +102,8 @@
 #'     return(FALSE)
 #'   }
 #' }
+#'
+#' # Fit the model.
 #' veb.fit = veb_boost(X, Y, fitFn, predFn, constCheckFn, family = "gaussian")
 #'
 #' @export
