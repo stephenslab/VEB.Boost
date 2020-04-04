@@ -4,17 +4,14 @@ Package: VEB.Boost
 Version: 0.0.0.9008
 Date: 2020-04-04
 Title: This package provides the functionality to perform VEB-Boosting.
-Authors@R: 
-    person(given = "Andrew",
-           family = "Goldstein",
-           role = c("aut", "cre"),
-           email = "andrewgoldstein@uchicago.edu")
+Authors@R: person(given = "Andrew",family = "Goldstein",role = c("aut", "cre"),
+                  email = "andrewgoldstein@uchicago.edu")
+URL: https://github.com/stephenslab/VEB.Boost
+BugReports: https://github.com/stephenslab/VEB.Boost/issues
 Description: What the package does (one paragraph).
-URL: https://github.com/stephenslab/mixsqp
-BugReports: https://github.com/stephenslab/mixsqp/issues
 License: MIT + file LICENSE
-RoxygenNote: 7.1.0
 Imports: data.tree, parallel, spatstat.utils, Matrix, R6
 Suggests: knitr, rmarkdown
+RoxygenNote: 7.1.0
 VignetteBuilder: knitr
 LazyData: true
