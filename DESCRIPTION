@@ -1,7 +1,7 @@
 Encoding: UTF-8
 Type: Package
 Package: VEB.Boost
-Version: 0.0.0.9008
+Version: 0.0.0.9009
 Date: 2020-04-04
 Title: Variational Empirical Bayes Boosting Methods
 Authors@R: person(given = "Andrew",family = "Goldstein",role = c("aut", "cre"),
