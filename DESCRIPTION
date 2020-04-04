@@ -3,15 +3,17 @@ Type: Package
 Package: VEB.Boost
 Version: 0.0.0.9008
 Date: 2020-04-04
-Title: This package provides the functionality to perform VEB-Boosting.
+Title: Variational Empirical Bayes Boosting Methods
 Authors@R: person(given = "Andrew",family = "Goldstein",role = c("aut", "cre"),
                   email = "andrewgoldstein@uchicago.edu")
 URL: https://github.com/stephenslab/VEB.Boost
 BugReports: https://github.com/stephenslab/VEB.Boost/issues
-Description: What the package does (one paragraph).
+Description: Implements fast algorithms for variational Empirical
+    Bayes boosting.
 License: MIT + file LICENSE
-Imports: data.tree, parallel, spatstat.utils, Matrix, R6
+Imports: Matrix, parallel, R6, data.tree, spatstat.utils
 Suggests: knitr, rmarkdown
-RoxygenNote: 7.1.0
 VignetteBuilder: knitr
 LazyData: true
+NeedsCompilation: no
+RoxygenNote: 7.1.0
