@@ -28,13 +28,13 @@ Each predictor can take any form, so long as the user-supplied fitFunctions and 
 
 \item{Y}{is a numeric vector response}
 
-\item{fitFunctions}{is either a single fitting function, or a list of length `k` of fitting functions to be used in
+\item{fitFunctions}{is either a single fitting function, or a list of length \code{k} of fitting functions to be used in
 each term on the sum of nodes}
 
-\item{predFunctions}{is either a single prediction function, or a list of length `k` of prediction functions to be used in
+\item{predFunctions}{is either a single prediction function, or a list of length \code{k} of prediction functions to be used in
 each term of the sum of nodes}
 
-\item{constCheckFunctions}{is either a single constant check function, or a list of length `k` of constant check functions
+\item{constCheckFunctions}{is either a single constant check function, or a list of length \code{k} of constant check functions
 to be used in each term of the sum of nodes}
 
 \item{growTree}{is a logical for if we should grow the tree after convergence (TRUE), or only use the initial tree
@@ -42,14 +42,14 @@ structure (FALSE)}
 
 \item{k}{is an integer for how many terms are in the sum of nodes}
 
-\item{d}{is either an integer, or an integer vector of length `k` for the multiplicative depth of each of the k terms
+\item{d}{is either an integer, or an integer vector of length \code{k} for the multiplicative depth of each of the k terms
 NOTE: This can be dangerous. For example, if the fit starts out too large, then entire branhces will be fit to be exactly
 zero. When this happens, we end up dividing by 0 in places, and this results in NAs, -Inf, etc. USE AT YOUR OWN RISK}
 
 \item{growMode}{specifies how we grow the tree, either splitting nodes with addition, multiplication, or both
-If `+*``, we grow mu_0 -> (mu_0 * mu_2) + mu_1
-If `+`, we grow mu_0 -> (mu_0 + mu_1)
-If `*`, we grow mu_0 -> (mu_0 * mu_1) (NOTE: Not recommended if we start with `k = 1`)}
+If \code{+*}, we grow mu_0 -> (mu_0 * mu_2) + mu_1
+If \code{+}, we grow mu_0 -> (mu_0 + mu_1)
+If \code{*}, we grow mu_0 -> (mu_0 * mu_1) (NOTE: Not recommended if we start with \code{k = 1})}
 
 \item{changeToConstant}{is a flag for if, when the fit is found to be basically constant, if we should actually change
 the fitting function of that node to fit exactly a constant value}
@@ -86,9 +86,9 @@ p = 1000
 X = matrix(runif(n * p), nrow = n, ncol = p)
 Y = rnorm(n, 5*sin(3*X[, 1]) + 2*(X[, 2]^2) + 3*X[, 3]*X[, 4])
 
-For input X and list `fit` returned from fitFn (encoding the variational posterior for b), computes either the 1st or 2nd 
+For input X and list \code{fit} returned from fitFn (encoding the variational posterior for b), computes either the 1st or 2nd 
 predFn = function(X, fit, moment = c(1, 2)) {
-  # posterior moments of the response (depending on if `moment` is 1 or 2)
+  # posterior moments of the response (depending on if \code{moment} is 1 or 2)
   if (moment == 1) {
     res = E_fit[Xb]
   } else {
@@ -110,7 +110,7 @@ fitFn = function(X, Y, sigma2, init) {
   return(fit)
 }
 
-For a given `fit`, returns TRUE if the variational posterior is close enough to a constant, else FALSE
+For a given \code{fit}, returns TRUE if the variational posterior is close enough to a constant, else FALSE
 constCheckFn = function(fit) {
   if (fit is close to constant) {
     return(TRUE)

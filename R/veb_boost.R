@@ -19,13 +19,13 @@
 #'
 #' @param Y is a numeric vector response
 #'
-#' @param fitFunctions is either a single fitting function, or a list of length `k` of fitting functions to be used in
+#' @param fitFunctions is either a single fitting function, or a list of length \code{k} of fitting functions to be used in
 #' each term on the sum of nodes
 #'
-#' @param predFunctions is either a single prediction function, or a list of length `k` of prediction functions to be used in
+#' @param predFunctions is either a single prediction function, or a list of length \code{k} of prediction functions to be used in
 #' each term of the sum of nodes
 #'
-#' @param constCheckFunctions is either a single constant check function, or a list of length `k` of constant check functions
+#' @param constCheckFunctions is either a single constant check function, or a list of length \code{k} of constant check functions
 #' to be used in each term of the sum of nodes
 #'
 #' @param growTree is a logical for if we should grow the tree after convergence (TRUE), or only use the initial tree
@@ -33,14 +33,14 @@
 #'
 #' @param k is an integer for how many terms are in the sum of nodes
 #'
-#' @param d is either an integer, or an integer vector of length `k` for the multiplicative depth of each of the k terms
+#' @param d is either an integer, or an integer vector of length \code{k} for the multiplicative depth of each of the k terms
 #' NOTE: This can be dangerous. For example, if the fit starts out too large, then entire branhces will be fit to be exactly
 #' zero. When this happens, we end up dividing by 0 in places, and this results in NAs, -Inf, etc. USE AT YOUR OWN RISK
 #'
 #' @param growMode specifies how we grow the tree, either splitting nodes with addition, multiplication, or both
-#' If `+*``, we grow mu_0 -> (mu_0 * mu_2) + mu_1
-#' If `+`, we grow mu_0 -> (mu_0 + mu_1)
-#' If `*`, we grow mu_0 -> (mu_0 * mu_1) (NOTE: Not recommended if we start with `k = 1`)
+#' If \code{+*}, we grow mu_0 -> (mu_0 * mu_2) + mu_1
+#' If \code{+}, we grow mu_0 -> (mu_0 + mu_1)
+#' If \code{*}, we grow mu_0 -> (mu_0 * mu_1) (NOTE: Not recommended if we start with \code{k = 1})
 #'
 #' @param changeToConstant is a flag for if, when the fit is found to be basically constant, if we should actually change
 #' the fitting function of that node to fit exactly a constant value
@@ -66,9 +66,9 @@
 #' X = matrix(runif(n * p), nrow = n, ncol = p)
 #' Y = rnorm(n, 5*sin(3*X[, 1]) + 2*(X[, 2]^2) + 3*X[, 3]*X[, 4])
 #' 
-#' For input X and list `fit` returned from fitFn (encoding the variational posterior for b), computes either the 1st or 2nd 
+#' For input X and list \code{fit} returned from fitFn (encoding the variational posterior for b), computes either the 1st or 2nd 
 #' predFn = function(X, fit, moment = c(1, 2)) {
-#'   # posterior moments of the response (depending on if `moment` is 1 or 2)
+#'   # posterior moments of the response (depending on if \code{moment} is 1 or 2)
 #'   if (moment == 1) {
 #'     res = E_fit[Xb]
 #'   } else {
@@ -90,7 +90,7 @@
 #'   return(fit)
 #' }
 #' 
-#' For a given `fit`, returns TRUE if the variational posterior is close enough to a constant, else FALSE
+#' For a given \code{fit}, returns TRUE if the variational posterior is close enough to a constant, else FALSE
 #' constCheckFn = function(fit) {
 #'   if (fit is close to constant) {
 #'     return(TRUE)
@@ -259,7 +259,7 @@ veb_boost = function(X, Y, fitFunctions, predFunctions, constCheckFunctions,
 #' 
 #' @param Y is a numeric vector response
 #' 
-#' @param X_test is an (m X p) matrix to be used as the testing data. Posterior mean response is saved in the output's field `$pred_mu1`
+#' @param X_test is an optional (m X p) matrix to be used as the testing data. Posterior mean response is saved in the output's field \code{$pred_mu1}
 #' 
 #' @param include_linear is a logical of length 1 or p specifying which columns of X we should include as linear terms.
 #' If the length is 1, this value gets recycled for all columns of X.
@@ -269,11 +269,11 @@ veb_boost = function(X, Y, fitFunctions, predFunctions, constCheckFunctions,
 #' 
 #' @param num_cuts is a whole number of length 1 or p specifying how many cuts to make when making the stumps terms.
 #' If the length is 1, this value gets recycled for all columns of X.
-#' For entries corresponding to the indices where `include_stumps` is FALSE, these values are ignored.
-#' We use the quantiles from each predictor when making the stumps splits, using `num_cuts` of them.
-#' If `num_cuts = Inf`, then all values of the variables are used as split points.
+#' For entries corresponding to the indices where \code{include_stumps} is FALSE, these values are ignored.
+#' We use the quantiles from each predictor when making the stumps splits, using \code{num_cuts} of them.
+#' If \code{num_cuts = Inf}, then all values of the variables are used as split points.
 #' 
-#' @param ... Other arguments to be passed to `veb_boost`
+#' @param ... Other arguments to be passed to \code{\link{veb_boost}}
 #' 
 #' @return A \code{VEB_Boost_Node} object with the fit
 #'
@@ -347,8 +347,8 @@ veb_boost_stumps = function(X, Y, X_test = NULL, include_linear = TRUE, include_
   # predict on test data, if any
   if (!is.null(X_test)) {
     X_test_stumps = make_stumps_matrix(X_test, include_linear, include_stumps, cuts)
+    veb.fit$predict.veb(X_test_stumps, 1)
   }
-  veb.fit$predict.veb(X_test_stumps, 1)
   
   return(veb.fit)
 }

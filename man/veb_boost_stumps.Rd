@@ -19,7 +19,7 @@ veb_boost_stumps(
 
 \item{Y}{is a numeric vector response}
 
-\item{X_test}{is an (m X p) matrix to be used as the testing data. Posterior mean response is saved in the output's field `$pred_mu1`}
+\item{X_test}{is an optional (m X p) matrix to be used as the testing data. Posterior mean response is saved in the output's field \code{$pred_mu1}}
 
 \item{include_linear}{is a logical of length 1 or p specifying which columns of X we should include as linear terms.
 If the length is 1, this value gets recycled for all columns of X.}
@@ -29,11 +29,11 @@ If the length is 1, this value gets recycled for all columns of X.}
 
 \item{num_cuts}{is a whole number of length 1 or p specifying how many cuts to make when making the stumps terms.
 If the length is 1, this value gets recycled for all columns of X.
-For entries corresponding to the indices where `include_stumps` is FALSE, these values are ignored.
-We use the quantiles from each predictor when making the stumps splits, using `num_cuts` of them.
-If `num_cuts = Inf`, then all values of the variables are used as split points.}
+For entries corresponding to the indices where \code{include_stumps} is FALSE, these values are ignored.
+We use the quantiles from each predictor when making the stumps splits, using \code{num_cuts} of them.
+If \code{num_cuts = Inf}, then all values of the variables are used as split points.}
 
-\item{...}{Other arguments to be passed to `veb_boost`}
+\item{...}{Other arguments to be passed to \code{\link{veb_boost}}}
 }
 \value{
 A \code{VEB_Boost_Node} object with the fit
