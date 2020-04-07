@@ -69,7 +69,7 @@ is.tfg_matrix=function(X) {
 # for those entries that are TRUE, it includes those variables as linear terms
 make_stumps_matrix = function(X, include_linear, include_stumps, Xtrain = NULL) {
   if (is.null(Xtrain)) {
-    Xtrain = lapply(1:ncol(X), function(j) x[, j])
+    Xtrain = lapply(1:ncol(X), function(j) X[, j])
   }
   
   if (length(include_linear) == 1) { # change include_linear to be a logical vector
