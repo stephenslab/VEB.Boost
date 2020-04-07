@@ -332,7 +332,7 @@ veb_boost_stumps = function(X, Y, X_test = NULL, include_linear = TRUE, include_
     }
     cuts = rep(list(NULL), p)
     for (j in 1:p) {
-      if (is.finite(num_cuts)[j]) {
+      if (is.finite(num_cuts[j])) {
         cuts[[j]] = quantile(X[, j], probs = seq(from = 0, to = 1, length.out = num_cuts[j]))
       }
     }
