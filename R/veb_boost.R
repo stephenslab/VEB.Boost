@@ -333,7 +333,7 @@ veb_boost_stumps = function(X, Y, X_test = NULL, include_linear = TRUE, include_
     cuts = rep(list(NULL), p)
     for (j in 1:p) {
       if (is.finite(num_cuts[j])) {
-        cuts[[j]] = quantile(X[, j], probs = seq(from = 0, to = 1, length.out = num_cuts[j]))
+        cuts[[j]] = quantile(X[, j], probs = seq(from = 0, to = 1, length.out = num_cuts[j] + 2))[-c(1, num_cuts[j] + 2)]
       }
     }
   }
@@ -346,6 +346,13 @@ veb_boost_stumps = function(X, Y, X_test = NULL, include_linear = TRUE, include_
   
   # predict on test data, if any
   if (!is.null(X_test)) {
+    # re-define cuts, for case where cuts = NULL, so that we use training data for splits, not test data
+    if (is.null(cuts)) {
+      cuts = lapply(X_stumps, function(x) attr(x, 'br'))
+      if (any(include_linear)) {
+        cuts = cuts[-1]
+      }
+    }
     X_test_stumps = make_stumps_matrix(X_test, include_linear, include_stumps, cuts)
     veb.fit$predict.veb(X_test_stumps, 1)
   }
