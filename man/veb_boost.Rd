@@ -7,6 +7,7 @@
 veb_boost(
   X,
   Y,
+  X_test = NULL,
   fitFunctions,
   predFunctions,
   constCheckFunctions,
@@ -22,11 +23,14 @@ veb_boost(
 )
 }
 \arguments{
-\item{X}{is a list of predictor objects with either 1 or k elements. If it contains 1 element, then the same
-predictor is used for each base learner. Otherwise, the k sub-trees that we add together each get their own X.
-Each predictor can take any form, so long as the user-supplied fitFunctions and predFunctions know how to use them.}
+\item{X}{is a predictor object to be used.
+This object can take any form, so long as the user-supplied \code{fitFunctions} and \code{predFunctions} know how to use them.}
 
 \item{Y}{is a numeric vector response}
+
+\item{X_test}{is an optional predictor object to be used as the testing data. Posterior mean response is saved in the output's field \code{$pred_mu1}.
+Alternatively, after running \code{veb_boost}, the user can call the \code{$predict} method on the output, with \code{X_test} as the first
+argument, and \code{1} as the second argument.}
 
 \item{fitFunctions}{is either a single fitting function, or a list of length \code{k} of fitting functions to be used in
 each term on the sum of nodes}

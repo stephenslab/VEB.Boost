@@ -97,7 +97,7 @@ VEBBoostNode <- R6Class(
       return(currentInputs)
     },
 
-    update_sigma2 = function() { # function to update sigma2
+    updateSigma2 = function() { # function to update sigma2
       self$sigma2 = ((sum(self$root$Y^2) - 2*sum(self$root$Y*self$root$mu1) + sum(self$root$mu2))) / length(self$root$Y)
       return(invisible(self))
     },
@@ -111,7 +111,7 @@ VEBBoostNode <- R6Class(
         currentInputs = NULL
         self$root$Do(function(x) currentInputs = x$updateFit(currentInputs), traversal = 'post-order')
         if (update_sigma2) {
-          self$root$update_sigma2()
+          self$root$updateSigma2()
         }
         i = i+1
         if (i > length(ELBOs)) { # double size of ELBOs for efficiency rather than making it bigger each iteration
@@ -228,7 +228,7 @@ VEBBoostNode <- R6Class(
       return(invisible(self$root))
     },
 
-    predict.veb = function(X_new, moment = c(1, 2)) { # function to get prediction on new data
+    predict = function(X_new, moment = c(1, 2)) { # function to get prediction on new data
       self$root$Do(function(node) {
         if (1 %in% moment) {
           node$pred_mu1 = node$predFunction(X_new, node$currentFit, 1)

@@ -13,11 +13,14 @@
 #' We start with the arithmetic tree structure \deqn{T(\mu_1, \dots, \mu_L) = \sum_{i=1}^k \prod_{j=1}^{d_k} \mu_{i, j}}
 #'
 #'
-#' @param X is a list of predictor objects with either 1 or k elements. If it contains 1 element, then the same
-#' predictor is used for each base learner. Otherwise, the k sub-trees that we add together each get their own X.
-#' Each predictor can take any form, so long as the user-supplied fitFunctions and predFunctions know how to use them.
+#' @param X is a predictor object to be used.
+#' This object can take any form, so long as the user-supplied \code{fitFunctions} and \code{predFunctions} know how to use them.
 #'
 #' @param Y is a numeric vector response
+#' 
+#' @param X_test is an optional predictor object to be used as the testing data. Posterior mean response is saved in the output's field \code{$pred_mu1}.
+#' Alternatively, after running \code{veb_boost}, the user can call the \code{$predict} method on the output, with \code{X_test} as the first
+#' argument, and \code{1} as the second argument.
 #'
 #' @param fitFunctions is either a single fitting function, or a list of length \code{k} of fitting functions to be used in
 #' each term on the sum of nodes
@@ -103,7 +106,7 @@
 #' @export
 #'
 
-veb_boost = function(X, Y, fitFunctions, predFunctions, constCheckFunctions,
+veb_boost = function(X, Y, X_test = NULL, fitFunctions, predFunctions, constCheckFunctions,
                      growTree = TRUE, k = 1, d = 1, growMode = c("+*", "+", "*"), changeToConstant = TRUE,
                      family = c("gaussian", "binomial", "multinomial"),
                      tol = length(Y) / 10000, verbose = TRUE, mc.cores = 1) {
@@ -169,24 +172,24 @@ veb_boost = function(X, Y, fitFunctions, predFunctions, constCheckFunctions,
   ### Run Gaussian/Binomial Cases ###
   if (family %in% c("gaussian", "binomial")) {
     # initialize tree
-    mu = initialize_veb_boost_tree(X = X, Y = Y, k = k, d = d, fitFunctions = fitFunctions, predFunctions = predFunctions,
+    learner = initialize_veb_boost_tree(X = X, Y = Y, k = k, d = d, fitFunctions = fitFunctions, predFunctions = predFunctions,
                                                constCheckFunctions = constCheckFunctions, family = family)
     if (family == "gaussian") {
-      mu$sigma2 = var(Y)
+      learner$sigma2 = var(Y)
     }
     update_sigma2 = (family == "gaussian") # only update variance if Gaussian response
 
     # converge fit once
-    mu$convergeFit(tol, update_sigma2 = update_sigma2, verbose = FALSE)
+    learner$convergeFit(tol, update_sigma2 = update_sigma2, verbose = FALSE)
 
     # if growing tree, continue w/ growing tree & fitting to convergence
     if (growTree) {
       if (verbose) {
-        cat(paste("ELBO: ", round(mu$ELBO, 3), sep = ""))
+        cat(paste("ELBO: ", round(learner$ELBO, 3), sep = ""))
         cat("\n")
       }
       
-      learner = mu$convergeFitAll(tol = tol, update_sigma2 = update_sigma2, growMode = growMode, changeToConstant = changeToConstant, verbose = FALSE)
+      learner$convergeFitAll(tol = tol, update_sigma2 = update_sigma2, growMode = growMode, changeToConstant = changeToConstant, verbose = FALSE)
 
       while ((abs(tail(tail(learner$ELBO_progress, 1)[[1]], 1) - tail(tail(learner$ELBO_progress, 2)[[1]], 1)) > tol) && 
              (length(Traverse(learner, filterFun = function(node) node$isLeaf & !node$isLocked)) > 0)) {
@@ -196,11 +199,14 @@ veb_boost = function(X, Y, fitFunctions, predFunctions, constCheckFunctions,
         }
         learner$convergeFitAll(tol = tol, update_sigma2 = update_sigma2, growMode = growMode, changeToConstant = changeToConstant, verbose = FALSE)
       }
-
-      return(learner)
-    } else {
-      return(mu)
+      
     }
+    
+    if (!is.null(X_test)) {
+      learner$predict(X_test, 1)
+    }
+    return(learner)
+    
   } else { # else, multinomial case
     classes = sort(unique(Y))
     learner_multiclass = VEBBoostMultiClassLearner$new()
@@ -238,6 +244,10 @@ veb_boost = function(X, Y, fitFunctions, predFunctions, constCheckFunctions,
         }
         learner_multiclass$convergeFitAll(tol = tol, growMode = growMode, changeToConstant = changeToConstant)
       }
+    }
+    
+    if (!is.null(X_test)) {
+      learner_multiclass$predict(X_test, 1)
     }
 
     return(learner_multiclass)
@@ -338,13 +348,9 @@ veb_boost_stumps = function(X, Y, X_test = NULL, include_linear = TRUE, include_
     }
   }
   X_stumps = make_stumps_matrix(X, include_linear, include_stumps, cuts)
-
-  # Run
-  veb.fit = veb_boost(X = X_stumps, Y = Y,
-                      fitFunctions = fitFnSusieStumps, predFunctions = predFnSusieStumps, constCheckFunctions = constCheckFnSusieStumps,
-                      ...)
   
-  # predict on test data, if any
+  # set up testing data, if any
+  X_test_stumps = NULL
   if (!is.null(X_test)) {
     # re-define cuts, for case where cuts = NULL, so that we use training data for splits, not test data
     if (is.null(cuts)) {
@@ -354,8 +360,12 @@ veb_boost_stumps = function(X, Y, X_test = NULL, include_linear = TRUE, include_
       }
     }
     X_test_stumps = make_stumps_matrix(X_test, include_linear, include_stumps, cuts)
-    veb.fit$predict.veb(X_test_stumps, 1)
   }
+
+  # Run
+  veb.fit = veb_boost(X = X_stumps, Y = Y, X_test = X_test_stumps, 
+                      fitFunctions = fitFnSusieStumps, predFunctions = predFnSusieStumps, constCheckFunctions = constCheckFnSusieStumps,
+                      ...)
   
   return(veb.fit)
 }
