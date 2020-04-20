@@ -12,7 +12,7 @@
 
 <meta name="author" content="Andrew Goldstein" />
 
-<meta name="date" content="2020-03-24" />
+<meta name="date" content="2020-04-20" />
 
 <title>VEB-Boost</title>
 
@@ -215,7 +215,7 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 
 <h1 class="title toc-ignore">VEB-Boost</h1>
 <h4 class="author">Andrew Goldstein</h4>
-<h4 class="date">2020-03-24</h4>
+<h4 class="date">2020-04-20</h4>
 
 
 
@@ -228,9 +228,7 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 <p>This section outlines the different user-supplied inputs to be provided to the <code>veb_boost</code> function.</p>
 <div id="predictor-object-x" class="section level2">
 <h2>Predictor-Object <code>X</code></h2>
-<p>The user must supply a list of objects to be used as the “inputs” for each node. The list <code>X</code> must be of length 1 or <code>k</code> (see the <code>veb_boost</code> parameters section). If the length is 1, then all nodes use the same predictor object. If the length is <code>k</code>, then each addition branch uses its own predictor object.</p>
-<p>Each list element of <code>X</code> can take any form the user desires, so long as the user-supplied fitting and prediction functions work on the same input type. For generality, we will call the class of objects that each element of <code>X</code> belongs to as <span class="math inline">\(\mathcal{X}\)</span>.</p>
-<p>Note that is the user wants the input <code>X</code> to be a list, then the list object must be contained within another list. For example, say the user-supplied fit function takes in a list of matrices, call it <code>M</code>. Then the user must set <code>X = list(M)</code>.</p>
+<p>The user must supply an object to be used as the “input” for each node. The object <code>X</code> can be of any form the user desires, so long as the user-supplied fitting and prediction functions work on the same input type. For generality, we will call the class of objects that <code>X</code> belongs to as <span class="math inline">\(\mathcal{X}\)</span>.</p>
 </div>
 <div id="response-y" class="section level2">
 <h2>Response <code>Y</code></h2>
@@ -239,7 +237,9 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 </div>
 <div id="fitting-functions-fitfunctions" class="section level2">
 <h2>Fitting Function[s] <code>fitFunctions</code></h2>
-<p>The user must supply 1 or <code>k</code> functions to be used as the fitting functions for each node. If 1 function is given, then each node uses the same fitting function. If a list of <code>k</code> functions is given, then each addition branch uses its own fit function. Define the space of a node’s fit to be <span class="math inline">\(\mathcal{F}\)</span>; for the variational approximation <span class="math inline">\(q\)</span> of the fit of <span class="math inline">\(\mu\)</span> encoded in <span class="math inline">\(\mathcal{F}\)</span>, this space must contain information on the following: <span class="math display">\[
+<p>The user must supply 1 or <code>k</code> functions to be used as the fitting functions for each node. If 1 function is given, then each node uses the same fitting function. If a list of <code>k</code> functions is given, then each addition branch uses its own fit function.</p>
+<p>For example, suppose we initialize our VEB-Boost tree with <span class="math inline">\(k = 2\)</span>, i.e. we start with <span class="math inline">\(Y = \mu_0 + \mu_1 + e\)</span>, and we want <span class="math inline">\(\mu_0\)</span> and <span class="math inline">\(\mu_1\)</span> to have different fitting functions, e.g. they use different data. Then our supplied <code>X</code> could be a list of two matrices <code>X = list(X1, X2)</code>, our first fit function could use <code>X[[1]]</code>, and our second fit function could use <code>X[[2]]</code>.</p>
+<p>Define the space of a node’s fit to be <span class="math inline">\(\mathcal{F}\)</span>; for the variational approximation <span class="math inline">\(q\)</span> of the fit of <span class="math inline">\(\mu\)</span> encoded in <span class="math inline">\(\mathcal{F}\)</span>, this space must contain information on the following: <span class="math display">\[
 \begin{aligned}
 \mathbb{E}_q[\mu_i], \quad i = 1, \dots, n \\
 \mathbb{E}_q[\mu_i^2], \quad i = 1, \dots, n \\
@@ -247,34 +247,34 @@ D_{KL}(q || p) \quad \text{for prior distribution } \; p
 \end{aligned}
 \]</span></p>
 <p>A fit function <span class="math inline">\(f\)</span> is a map <span class="math display">\[
-f: (\mathcal{X}, \mathcal{Y}, \mathbb{R}_{++}^n, \mathcal{F}) \to \mathcal{F}
+f: (\mathcal{X}, \mathbb{R}^n, \mathbb{R}_{++}^n, \mathcal{F}) \to \mathcal{F}
 \]</span> So the fit function must take in 4 arguments:</p>
 <ol style="list-style-type: decimal">
-<li><p>The predictor object at the given node;</p></li>
+<li><p>The predictor object of the VEB-Boost tree;</p></li>
 <li><p>The current (numeric) response at the given node;</p></li>
 <li><p>The current variances at the given node;</p></li>
 <li><p>The current fit at the given node, to be used as an itialization for the fit function.</p></li>
 </ol>
 <p>The output of the fit function must be a list encoding the variational approximation fitted at the node.</p>
-<p>The list MUST include the following elements: - <code>$mu1</code> <span class="math inline">\(\in \mathbb{R}^n\)</span>: contains the first posterior moments of our fit;</p>
+<p>The list MUST include the following elements: - <code>$mu1</code> <span class="math inline">\(\in \mathbb{R}^n\)</span>: contains the first posterior moments of our fit, i.e. <span class="math inline">\(\mathbb{E}_q[\mu_i], \quad i = 1, \dots, n\)</span>;</p>
 <ul>
-<li><p><code>$mu2</code> <span class="math inline">\(\in \mathbb{R}_+^n\)</span>: contains the second posterior moments of our fit;</p></li>
-<li><p><code>$KL_div</code> <span class="math inline">\(\in \mathbb{R}_+\)</span>: contains the KL-divergence from the variational approximation to the prior at the node.</p></li>
+<li><p><code>$mu2</code> <span class="math inline">\(\in \mathbb{R}_+^n\)</span>: contains the second posterior moments of our fit, i.e. <span class="math inline">\(\mathbb{E}_q[\mu_i^2], \quad i = 1, \dots, n\)</span>;</p></li>
+<li><p><code>$KL_div</code> <span class="math inline">\(\in \mathbb{R}_+\)</span>: contains the KL-divergence from the variational approximation to the prior at the node, i.e. <span class="math inline">\(D_{KL}(q || p) \quad \text{for prior distribution } \; p\)</span>.</p></li>
 </ul>
 </div>
 <div id="prediction-functions-predfunctions" class="section level2">
 <h2>Prediction Function[s] <code>predFunctions</code></h2>
 <p>The user must supply 1 or <code>k</code> functions to be used as the prediction functions for each node. If 1 function is given, then each node uses the same prediction function. If a list of <code>k</code> functions is given, then each addition branch uses its own prediction function.</p>
 <p>A prediction function is a map <span class="math display">\[
-p: (\mathcal{X}, \mathcal{F}, \{1, 2\}) \to \mathbb{E}_q[\mu|X \in \mathcal{X_{new}}] \quad \text{or} \quad \mathbb{E}_q[\mu^2|X_{new} \in \mathcal{X}]
-\]</span> In other words, given a new predictor object <span class="math inline">\(X_{new} \in \mathcal{X}\)</span>, and your current fit <span class="math inline">\(F \in \mathcal{F}\)</span> that encodes the variational approximation <span class="math inline">\(q\)</span>, this function returns either the first or second moment for the fit using the given new data.</p>
+pred: (X_{new} \in \mathcal{X}, q \in \mathcal{F}, moment \in \{1, 2\}) \to \mathbb{E}_q[\mu^{moment}|X_{new}]
+\]</span> In other words, given a new predictor object <span class="math inline">\(X_{new} \in \mathcal{X}\)</span>, and your current fit <span class="math inline">\(q \in \mathcal{F}\)</span> that encodes the variational approximation <span class="math inline">\(q\)</span>, this function returns either the first or second moment for the fit using the given new data.</p>
 </div>
 <div id="constant-check-functions-constcheckfunctions" class="section level2">
 <h2>Constant Check Function[s] <code>constCheckFunctions</code></h2>
 <p>The user must supply 1 or <code>k</code> functions to be used as the constant check functions for each node. If 1 function is given, then each node uses the same check function. If a list of <code>k</code> functions is given, then each addition branch uses its own check function.</p>
 <p>A constant check function is a map: <span class="math display">\[
 c: \mathcal{F} \to \{\text{TRUE}, \text{FALSE}\}
-\]</span> In other words, it takes in the current fit of the node <span class="math inline">\(F \in \mathcal{F}\)</span> and returns a <code>TRUE</code> if the fit is close enough to a constant value, and <code>FALSE</code> otherwise.</p>
+\]</span> In other words, it takes in the current fit of the node <span class="math inline">\(q \in \mathcal{F}\)</span> and returns a <code>TRUE</code> if the fit is close enough to a constant value, and <code>FALSE</code> otherwise.</p>
 <p>Note that the function <span class="math inline">\(c \equiv \text{FALSE}\)</span> is a valid constant check function, but may retult in slower convergence.</p>
 </div>
 </div>
@@ -289,20 +289,20 @@ c: \mathcal{F} \to \{\text{TRUE}, \text{FALSE}\}
 <h2><code>k</code> and <code>d</code></h2>
 <p>These arguments specify the initial structure of the VEB-Boost tree. <code>k</code> must be a whole number, and <code>d</code> either a whole number, or a <code>k</code>-vector of whole numbers. WLOG, let <code>d</code> be a <code>k</code>-vector of whole numbers, possibly just one number repeated <code>k</code> times. Then the initial tree structure is: <span class="math display">\[
 T(\mu_1, \dots, \mu_{d_1 + \dots d_k}) = \sum_{i = 1}^k \prod_{j = 1}^{d_i} \mu_{j + \sum_{l &lt; i} d_l}
-\]</span> All nodes within a product share a predictor object, fit funcion, prediction function, and constant check function, which is why the length of these inputs must be exactly 1 or <code>k</code>.</p>
+\]</span> All nodes within a product share a fit function, prediction function, and constant check function, which is why the length of these inputs must be exactly 1 or <code>k</code>.</p>
 </div>
 <div id="growmode" class="section level2">
 <h2><code>growMode</code></h2>
 <p>This argument specifies how we grow the tree (assuming <code>growTree</code> is <code>TRUE</code>). There are 3 different options specifying how we “split” non-constant nodes:</p>
 <ol style="list-style-type: decimal">
+<li><p><code>&quot;+*&quot;</code> (RECOMMENDED): we grow <span class="math inline">\(\mu_0 \to (\mu_0 \circ \mu_2) + \mu_1\)</span>.</p></li>
 <li><p><code>&quot;+&quot;</code>: we grow <span class="math inline">\(\mu_0 \to \mu_0 + \mu_1\)</span>;</p></li>
 <li><p><code>&quot;*&quot;</code>, we grow <span class="math inline">\(\mu_0 \to \mu_0 \circ \mu_1\)</span> (NOTE: Not recommended if we start with <code>k = 1</code>);</p></li>
-<li><p><code>&quot;+*&quot;</code> (RECOMMENDED): we grow <span class="math inline">\(\mu_0 \to (\mu_0 \circ \mu_2) + \mu_1\)</span>.</p></li>
 </ol>
 </div>
 <div id="changetoconstant" class="section level2">
 <h2><code>changeToConstant</code></h2>
-<p>This argument specifies whether to change constant nodes to fit exactly a constant function, or whether thwy should continue to fit the user-specified function.</p>
+<p>This argument specifies whether to change constant nodes to fit exactly a constant function, or whether they should continue to fit the user-specified function.</p>
 </div>
 <div id="family" class="section level2">
 <h2><code>family</code></h2>
