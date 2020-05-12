@@ -74,8 +74,8 @@ A \code{VEB_Boost_Node} object with the fit
 Solves the VEB-Boost regression problem using the supplied inputs
 }
 \details{
-Given a pre-specified arithmetic tree structure \deqn{T(\mu_1, \dots, \mu_L)},
-priors \deqn{\mu_l \sim g_l(\cdot)}, and inputs for the response, VEB-Boosting is performed.
+Given a pre-specified arithmetic tree structure \deqn{T(\mu_1, \dots, \mu_L)}, \deqn{\mu_l := h_l(\beta_l)}, 
+priors \deqn{\beta_l \sim g_l(\cdot)}, and inputs for the response, VEB-Boosting is performed.
 
 A cyclic CAVI scheme is used, where we cycle over the leaf nodes and update the approxiomation
 to the posterior distribution at each node in turn.

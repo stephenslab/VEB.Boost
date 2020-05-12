@@ -4,8 +4,8 @@
 #'
 #' @details
 #'
-#' Given a pre-specified arithmetic tree structure \deqn{T(\mu_1, \dots, \mu_L)},
-#' priors \deqn{\mu_l \sim g_l(\cdot)}, and inputs for the response, VEB-Boosting is performed.
+#' Given a pre-specified arithmetic tree structure \deqn{T(\mu_1, \dots, \mu_L)}, \deqn{\mu_l := h_l(\beta_l)}, 
+#' priors \deqn{\beta_l \sim g_l(\cdot)}, and inputs for the response, VEB-Boosting is performed.
 #'
 #' A cyclic CAVI scheme is used, where we cycle over the leaf nodes and update the approxiomation
 #' to the posterior distribution at each node in turn.
@@ -191,7 +191,7 @@ veb_boost = function(X, Y, X_test = NULL, fitFunctions, predFunctions, constChec
       
       learner$convergeFitAll(tol = tol, update_sigma2 = update_sigma2, growMode = growMode, changeToConstant = changeToConstant, verbose = FALSE)
 
-      while ((abs(tail(tail(learner$ELBO_progress, 1)[[1]], 1) - tail(tail(learner$ELBO_progress, 2)[[1]], 1)) > tol) && 
+      while ((tail(tail(learner$ELBO_progress, 1)[[1]], 1) - tail(tail(learner$ELBO_progress, 2)[[1]], 1) > tol) && 
              (length(Traverse(learner, filterFun = function(node) node$isLeaf & !node$isLocked)) > 0)) {
         if (verbose) {
           cat(paste("ELBO: ", round(learner$ELBO, 3), sep = ""))
@@ -343,7 +343,7 @@ veb_boost_stumps = function(X, Y, X_test = NULL, include_linear = TRUE, include_
     cuts = rep(list(NULL), p)
     for (j in 1:p) {
       if (is.finite(num_cuts[j])) {
-        cuts[[j]] = quantile(X[, j], probs = seq(from = 0, to = 1, length.out = num_cuts[j] + 2))[-c(1, num_cuts[j] + 2)]
+        cuts[[j]] = quantile(X[, j], probs = qbeta(seq(from = 0, to = 1, length.out = num_cuts[j] + 2), .5, .5))[-c(1, num_cuts[j] + 2)]
       }
     }
   }

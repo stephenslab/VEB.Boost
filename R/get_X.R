@@ -33,3 +33,4 @@ get_ncol = function(X){
 is_valid_matrix = function(X){
   return((is.double(X) & is.matrix(X)) | inherits(X,"CsparseMatrix"))
 }
+

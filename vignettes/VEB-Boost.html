@@ -12,7 +12,7 @@
 
 <meta name="author" content="Andrew Goldstein" />
 
-<meta name="date" content="2020-04-20" />
+<meta name="date" content="2020-05-12" />
 
 <title>VEB-Boost</title>
 
@@ -215,7 +215,7 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 
 <h1 class="title toc-ignore">VEB-Boost</h1>
 <h4 class="author">Andrew Goldstein</h4>
-<h4 class="date">2020-04-20</h4>
+<h4 class="date">2020-05-12</h4>
 
 
 
@@ -239,11 +239,11 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 <h2>Fitting Function[s] <code>fitFunctions</code></h2>
 <p>The user must supply 1 or <code>k</code> functions to be used as the fitting functions for each node. If 1 function is given, then each node uses the same fitting function. If a list of <code>k</code> functions is given, then each addition branch uses its own fit function.</p>
 <p>For example, suppose we initialize our VEB-Boost tree with <span class="math inline">\(k = 2\)</span>, i.e. we start with <span class="math inline">\(Y = \mu_0 + \mu_1 + e\)</span>, and we want <span class="math inline">\(\mu_0\)</span> and <span class="math inline">\(\mu_1\)</span> to have different fitting functions, e.g. they use different data. Then our supplied <code>X</code> could be a list of two matrices <code>X = list(X1, X2)</code>, our first fit function could use <code>X[[1]]</code>, and our second fit function could use <code>X[[2]]</code>.</p>
-<p>Define the space of a node’s fit to be <span class="math inline">\(\mathcal{F}\)</span>; for the variational approximation <span class="math inline">\(q\)</span> of the fit of <span class="math inline">\(\mu\)</span> encoded in <span class="math inline">\(\mathcal{F}\)</span>, this space must contain information on the following: <span class="math display">\[
+<p>Define the space of a node’s fit to be <span class="math inline">\(\mathcal{F}\)</span>; for the variational approximation <span class="math inline">\(q\)</span> of the fit of <span class="math inline">\(\beta\)</span> (where <span class="math inline">\(\mu \equiv h(\beta)\)</span>) encoded in <span class="math inline">\(\mathcal{F}\)</span>, this space must contain information on the following: <span class="math display">\[
 \begin{aligned}
-\mathbb{E}_q[\mu_i], \quad i = 1, \dots, n \\
-\mathbb{E}_q[\mu_i^2], \quad i = 1, \dots, n \\
-D_{KL}(q || p) \quad \text{for prior distribution } \; p
+\mathbb{E}_q[\mu_i] = \mathbb{E}_q[h(\beta)_i], \quad i = 1, \dots, n \\
+\mathbb{E}_q[\mu_i^2] = \mathbb{E}_q[h(\beta)_i^2], \quad i = 1, \dots, n \\
+D_{KL}(q(\beta) || g(\beta)) \quad \text{for prior distribution } \; g
 \end{aligned}
 \]</span></p>
 <p>A fit function <span class="math inline">\(f\)</span> is a map <span class="math display">\[
@@ -259,7 +259,7 @@ f: (\mathcal{X}, \mathbb{R}^n, \mathbb{R}_{++}^n, \mathcal{F}) \to \mathcal{F}
 <p>The list MUST include the following elements: - <code>$mu1</code> <span class="math inline">\(\in \mathbb{R}^n\)</span>: contains the first posterior moments of our fit, i.e. <span class="math inline">\(\mathbb{E}_q[\mu_i], \quad i = 1, \dots, n\)</span>;</p>
 <ul>
 <li><p><code>$mu2</code> <span class="math inline">\(\in \mathbb{R}_+^n\)</span>: contains the second posterior moments of our fit, i.e. <span class="math inline">\(\mathbb{E}_q[\mu_i^2], \quad i = 1, \dots, n\)</span>;</p></li>
-<li><p><code>$KL_div</code> <span class="math inline">\(\in \mathbb{R}_+\)</span>: contains the KL-divergence from the variational approximation to the prior at the node, i.e. <span class="math inline">\(D_{KL}(q || p) \quad \text{for prior distribution } \; p\)</span>.</p></li>
+<li><p><code>$KL_div</code> <span class="math inline">\(\in \mathbb{R}_+\)</span>: contains the KL-divergence from the variational approximation to the prior at the node, i.e. <span class="math inline">\(D_{KL}(q || g) \quad \text{for prior distribution } \; g\)</span>.</p></li>
 </ul>
 </div>
 <div id="prediction-functions-predfunctions" class="section level2">
