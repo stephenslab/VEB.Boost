@@ -81,6 +81,13 @@ VEBBoostNode <- R6Class(
         } else { # else, update inputs
           currentInputs = self$updateCurrentInputs(currentInputs)
         }
+        # if (!self$isLocked && any(is.infinite(currentInputs$sigma2))) {
+        #   self$isLocked = TRUE
+        #   self$fitFunction = private$.fitFnConstComp
+        #   self$predFunction = private$.predFnConstComp
+        #   self$constCheckFunction = private$.constCheckFnConstComp
+        #   self$updateFit()
+        # }
         self$currentFit = self$fitFunction(self$X, currentInputs$Y, currentInputs$sigma2, self$currentFit)
       }
       if (!self$isRoot) {
@@ -175,10 +182,15 @@ VEBBoostNode <- R6Class(
 
       base_learners = Traverse(self$root, filterFun = function(x) x$isLeaf & !x$isLocked)
       for (learner in base_learners) {
-        if (learner$isRoot) { # if root, not locked, do this to avoid errors in next if statement
+        if (learner$isRoot || learner$parent$isRoot) { # if root or parent is root, not locked, do this to avoid errors in next if statement
           next
         }
-        if (learner$siblings[[1]]$isLocked && (((growMode %in% c("+", "*")) && (learner$parent$operator == growMode)) || learner$parent$siblings[[1]]$isLocked)) {
+        # if only adding or multiplying, and we already added or multiplied with another node, and that node is locked, then lock learner
+        if ((growMode %in% c("+", "*")) && (learner$parent$operator == growMode) && learner$siblings[[1]]$isLocked) {
+          learner$isLocked = TRUE
+        }
+        # if "+*", and already if a "+*" part where both "+" anr "*" parts or locked, then lock learner
+        if ((growMode == "+*") && (learner$parent$operator == "+") && (learner$parent$parent$operator == "*") && learner$parent$siblings[[1]]$isLocked) {
           learner$isLocked = TRUE
         }
       }
