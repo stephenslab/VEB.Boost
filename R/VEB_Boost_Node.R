@@ -64,20 +64,25 @@ VEBBoostNode <- R6Class(
       if (self$isRoot) {
         return(currentInputs)
       }
-      if (self$parent$operator == "+") {
-        currentInputs$Y = currentInputs$Y - self$siblings[[1]]$mu1
-        currentInputs$sigma2 = currentInputs$sigma2
+      if (currentInputs$name == self$parent$name) {
+        if (self$parent$operator == "+") {
+          currentInputs$Y = currentInputs$Y - self$siblings[[1]]$mu1
+          currentInputs$sigma2 = currentInputs$sigma2
+        } else {
+          currentInputs$Y = currentInputs$Y * (self$siblings[[1]]$mu1 / self$siblings[[1]]$mu2)
+          currentInputs$sigma2 = currentInputs$sigma2 / self$siblings[[1]]$mu2
+        }
+        currentInputs$name = self$name
+        return(currentInputs)
       } else {
-        currentInputs$Y = currentInputs$Y * (self$siblings[[1]]$mu1 / self$siblings[[1]]$mu2)
-        currentInputs$sigma2 = currentInputs$sigma2 / self$siblings[[1]]$mu2
+        return(self$updateCurrentInputs(self$parent$updateCurrentInputs(currentInputs)))
       }
-      return(currentInputs)
     }, 
 
     updateFit = function(currentInputs = NULL) { # function to update currentFit
       if (self$isLeaf) {
         if (is.null(currentInputs)) { # when starting at mu_0
-          currentInputs = list(Y = self$Y, sigma2 = self$sigma2)
+          currentInputs = list(Y = self$Y, sigma2 = self$sigma2, name = self$name)
         } else { # else, update inputs
           currentInputs = self$updateCurrentInputs(currentInputs)
         }
@@ -90,8 +95,9 @@ VEBBoostNode <- R6Class(
         # }
         self$currentFit = self$fitFunction(self$X, currentInputs$Y, currentInputs$sigma2, self$currentFit)
       }
+      self$updateMoments()
       if (!self$isRoot) {
-        self$parent$updateMoments()
+        currentInputs$name = self$parent$name
         # now, revert to inputs at parent
         if (self$parent$operator == "+") {
           currentInputs$Y = currentInputs$Y + self$siblings[[1]]$mu1
@@ -114,9 +120,13 @@ VEBBoostNode <- R6Class(
       ELBOs[1] = -Inf
       ELBOs[2] = self$root$ELBO
       i = 2
+      nodes = Traverse(self$root, 'post-order')
       while (abs(ELBOs[i] - ELBOs[i-1]) > tol) {
         currentInputs = NULL
-        self$root$Do(function(x) currentInputs = x$updateFit(currentInputs), traversal = 'post-order')
+        # self$root$Do(function(x) currentInputs = x$updateFit(currentInputs), traversal = 'post-order')
+        for (n in nodes) {
+          currentInputs = n$updateFit(currentInputs)
+        }
         if (update_sigma2) {
           self$root$updateSigma2()
         }

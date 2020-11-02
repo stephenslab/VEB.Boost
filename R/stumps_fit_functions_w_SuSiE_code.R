@@ -1,8 +1,7 @@
 ### SuSiE stumps-related functions
 
-calc_KL = function(mu, alpha, sigma2, V = 1) {
+calc_KL = function(mu, alpha, sigma2, prior_weights, V = 1) {
   p = length(mu)
-  prior_weights = rep(1 / p, p)
   b_post = alpha * mu
 
   prior_var = rep(V, p)
@@ -54,6 +53,7 @@ make_tfg_matrix = function(t, br = t, order = 0) {
   attr(X,"order_t") <- order(t)
   attr(X,"t_to_bin") <- .bincode(t,breaks = c(-Inf,br,Inf))
   attr(X,"bin_to_t") <- cumsum(hist(t, breaks = c(-Inf,br,Inf), plot=FALSE)$counts)
+  # attr(X,"bin_to_t") <- cumsum(matrixStats::binCounts(t, bx = c(-Inf,br,Inf), right=TRUE)) # might be faster, but have to deal w/ Inf
   attr(X,"scaled:center") <- 0
   attr(X,"scaled:scale") <- 1
   return(X)
@@ -246,7 +246,7 @@ weighted_SER = function(X, Y, sigma2, init = list(V = NULL)) {
   # mu2 = E[(int + Xb)^2] = E[(Y_avg - X_avg'b + Xb)^2]
   mu2 = Y_avg^2 + 2*Y_avg*(Xb_post - X_avg_b_post) + compute_X2b(X, beta_post_2, X_avg)
 
-  KL_div = calc_KL(mu, alpha, sigma2_post, V)
+  KL_div = calc_KL(mu, alpha, sigma2_post, prior_weights, V)
 
   return(list(mu1 = as.numeric(mu1), mu2 = as.numeric(mu2), KL_div = KL_div, alpha = alpha, mu = mu, sigma2_post = sigma2_post, intercept = intercept, V = V, X_avg = X_avg, Y_avg = Y_avg))
 }
