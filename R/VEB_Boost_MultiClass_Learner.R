@@ -90,7 +90,7 @@ VEBBoostMultiClassLearner <- R6::R6Class(
       return(invisible(self))
     },
 
-    predict.veb = function(X_new, moment = c(1, 2)) { # function to get prediction on new data
+    predict = function(X_new, moment = c(1, 2)) { # function to get prediction on new data
       for (learner in self$learners) {
         learner$root$Do(function(node) {
           if (1 %in% moment) {
@@ -112,7 +112,7 @@ VEBBoostMultiClassLearner <- R6::R6Class(
     .pred_mu1 = NULL, # prediction based on predFunction and given new data (first moment)
     .pred_mu2 = NULL, # prediction based on predFunction and given new data (second moment)
     .updateLearnerFn = function(learner) { # function for learner to update fit
-      learner$root$Do(function(x) x$updateFit(), traversal = 'post-order')
+      learner$convergeFit(tol = 1e-3, update_sigma2 = FALSE, update_ELBO_progress = FALSE, verbose = FALSE, maxit = 1)
       return(learner)
     },
     .addLearnerFn = function(learner, growMode, changeToConstant) { # function for learner to add nodes

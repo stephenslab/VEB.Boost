@@ -44,6 +44,8 @@
 #' If \code{+*}, we grow mu_0 -> (mu_0 * mu_2) + mu_1
 #' If \code{+}, we grow mu_0 -> (mu_0 + mu_1)
 #' If \code{*}, we grow mu_0 -> (mu_0 * mu_1) (NOTE: Not recommended if we start with \code{k = 1})
+#' 
+#' @param addMrAsh a logical flag for if a Mr.Ash fit should be added to the full tree to "regress out" linear effects
 #'
 #' @param changeToConstant is a flag for if, when the fit is found to be basically constant, if we should actually change
 #' the fitting function of that node to fit exactly a constant value
@@ -51,6 +53,9 @@
 #' @param family is what family the response is
 #'
 #' @param tol is a positive scalar specifying the level of convergence to be used
+#' 
+#' @param exposure is a scalar or a vector used for the Poisson regression case. Here, we assume that the response
+#' \deqn{Y_i \sim Pois(c_i \lambda_i)} for given exposure \deqn{c_i}, and we model \deqn{\lambda_i}
 #'
 #' @param verbose is a logical flag specifying whether we should report convergence information as we go
 #'
@@ -107,9 +112,9 @@
 #'
 
 veb_boost = function(X, Y, X_test = NULL, fitFunctions, predFunctions, constCheckFunctions,
-                     growTree = TRUE, k = 1, d = 1, growMode = c("+*", "+", "*"), changeToConstant = TRUE,
-                     family = c("gaussian", "binomial", "multinomial"),
-                     tol = length(Y) / 10000, verbose = TRUE, mc.cores = 1) {
+                     growTree = TRUE, k = 1, d = 1, growMode = c("+*", "+", "*"), addMrAsh = FALSE, 
+                     changeToConstant = FALSE, family = c("gaussian", "binomial", "multinomial", "negative.binomial", "poisson.log1pexp", "poisson.exp"),
+                     exposure = NULL, tol = length(Y) / 10000, verbose = TRUE, mc.cores = 1) {
 
   ### Check Inputs ###
   # Logical Flags
@@ -152,6 +157,17 @@ veb_boost = function(X, Y, X_test = NULL, fitFunctions, predFunctions, constChec
   growMode = match.arg(growMode)
   # Family
   family = match.arg(family)
+  # Exposure
+  if (!(grepl("poisson", family, ignore.case = TRUE) | family == "negative.binomial")) {
+    if (!is.null(exposure)) {
+      warning("Argument 'exposure' is only used in the Poisson or negative binomial cases, ignoring supplied input")
+    }
+  } else {
+    if (is.null(exposure)) {
+      warning("Argument 'exposure' must be supplied in the Poisson or negative binomial cases, setting to 1")
+      exposure = rep(1, length(Y))
+    }
+  }
   # Tolerance
   if (!is.numeric(tol) || (length(tol) > 1) || (tol <= 0)) {
     stop("'tol' must be a positive number")
@@ -163,6 +179,9 @@ veb_boost = function(X, Y, X_test = NULL, fitFunctions, predFunctions, constChec
   if ((family == "binomial") && any(!(Y %in% c(0, 1)))) {
     stop("'Y' must be 0/1 when using binomial response")
   }
+  if ((grepl("poisson", family, ignore.case = TRUE) | family == "negative.binomial") && (any(Y < 0) || any(Y %% 1 != 0))) {
+    stop("'Y' must be positive integers when using Poisson or negative binomial response")
+  }
   # mc.cores
   if (mc.cores != 1) {
     message("Parallel multinomial updates not currently supported, setting 'mc.cores' to 1")
@@ -170,10 +189,10 @@ veb_boost = function(X, Y, X_test = NULL, fitFunctions, predFunctions, constChec
   }
 
   ### Run Gaussian/Binomial Cases ###
-  if (family %in% c("gaussian", "binomial")) {
+  if (family %in% c("gaussian", "binomial", "negative.binomial", "poisson.log1pexp", "poisson.exp")) {
     # initialize tree
     learner = initialize_veb_boost_tree(X = X, Y = Y, k = k, d = d, fitFunctions = fitFunctions, predFunctions = predFunctions,
-                                               constCheckFunctions = constCheckFunctions, family = family)
+                                               constCheckFunctions = constCheckFunctions, addMrAsh = addMrAsh, family = family, exposure = exposure)
     if (family == "gaussian") {
       learner$sigma2 = var(Y)
     }
@@ -273,15 +292,23 @@ veb_boost = function(X, Y, X_test = NULL, fitFunctions, predFunctions, constChec
 #' 
 #' @param include_linear is a logical of length 1 or p specifying which columns of X we should include as linear terms.
 #' If the length is 1, this value gets recycled for all columns of X.
+#' If NULL is supplied, then all valid linear terms are used.
 #' 
 #' @param include_stumps is a logical of length 1 or p specifying which columns of X we should include as stump terms
 #' If the length is 1, this value gets recycled for all columns of X.
+#' If NULL is supplied, then all valid stumps terms are used.
 #' 
 #' @param num_cuts is a whole number of length 1 or p specifying how many cuts to make when making the stumps terms.
 #' If the length is 1, this value gets recycled for all columns of X.
 #' For entries corresponding to the indices where \code{include_stumps} is FALSE, these values are ignored.
 #' We use the quantiles from each predictor when making the stumps splits, using \code{num_cuts} of them.
 #' If \code{num_cuts = Inf}, then all values of the variables are used as split points.
+#' 
+#' @param use_quants is a logical for if the cut-points should be based off of the quantiles (`use_quants = TRUE`), or if the
+#' cut points should be evenly spaced in the range of the variable (`use_quants = FALSE`).
+#' 
+#' @param scale_X is a logical for if the columns of X should be scaled to be on the [-1, 1] scale (i.e. divide each column
+#' by its maximum absolute value). This puts the linear terms on the same scale as the stumps terms (which are binary).
 #' 
 #' @param ... Other arguments to be passed to \code{\link{veb_boost}}
 #' 
@@ -295,10 +322,15 @@ veb_boost = function(X, Y, X_test = NULL, fitFunctions, predFunctions, constChec
 #' Y = rnorm(n, 5*sin(3*X[, 1]) + 2*(X[, 2]^2) + 3*X[, 3]*X[, 4])
 #' veb.stumps.fit = veb_boost_stumps(X, Y, include_linear = TRUE, family = "gaussian")
 #' 
+#' @importFrom sparseMatrixStats colRanges
+#' @importFrom sparseMatrixStats colQuantiles
+#' 
 #' @export
 #' 
 
-veb_boost_stumps = function(X, Y, X_test = NULL, include_linear = TRUE, include_stumps = TRUE, num_cuts = 100, ...) {
+veb_boost_stumps = function(X, Y, X_test = NULL, include_linear = NULL, include_stumps = NULL, 
+                            num_cuts = ceiling(min(length(Y) / 5, max(100, sqrt(length(Y))))), 
+                            use_quants = TRUE, scale_X = TRUE, ...) {
   ### Check Inputs ###
   # Check X
   if (!is_valid_matrix(X)) {
@@ -309,45 +341,94 @@ veb_boost_stumps = function(X, Y, X_test = NULL, include_linear = TRUE, include_
   }
   p = ncol(X)
   # Check logicals
-  if (!(all(include_linear %in% c(TRUE, FALSE)))) {
-    stop("'include_linear' must be either TRUE or FALSE")
+  if (!(is.null(include_linear) || all(include_linear %in% c(TRUE, FALSE)))) {
+    stop("'include_linear' must be either TRUE or FALSE, or be NULL")
   }
-  if (!(length(include_linear) %in% c(1, p))) {
-    stop("'include_linear' must have length 1 or ncol(X)")
+  if (!(is.null(include_linear) || (length(include_linear) %in% c(1, p)))) {
+    stop("'include_linear' must have length 1 or ncol(X), or be NULL")
   }
-  if (!(all(include_stumps %in% c(TRUE, FALSE)))) {
-    stop("'include_stumps' must be either TRUE or FALSE")
+  if (!(is.null(include_stumps) || all(include_stumps %in% c(TRUE, FALSE)))) {
+    stop("'include_stumps' must be either TRUE or FALSE, or be NULL")
   }
-  if (!(length(include_stumps) %in% c(1, p))) {
-    stop("'include_stumps' must have length 1 or ncol(X)")
+  if (!(is.null(include_stumps) || (length(include_stumps) %in% c(1, p)))) {
+    stop("'include_stumps' must have length 1 or ncol(X), or be NULL")
   }
   # Make sure at least one include is true
-  if (!(any(include_linear) | any(include_stumps))) {
-    stop("At least one of 'include_linear' or 'include_stumps' must be TRUE")
+  if (!is.null(include_linear) && !is.null(include_stumps) && all(include_linear == FALSE) && all(include_stumps == FALSE)) {
+    stop("At least one of 'include_linear' or 'include_stumps' must be TRUE or NULL")
   }
   # Make sure num_cuts is a positive whole number
   if (any(num_cuts < 1) || any(num_cuts[is.finite(num_cuts)] %% 1 != 0)) {
     stop("'num_cuts' must be a positive whole number or Inf")
   }
-  if (!(length(num_cuts) %in% c(1, p))) {
-    stop("'num_cuts' must have length 1 or ncol(X)")
+  # if (!(length(num_cuts) %in% c(1, p))) {
+  #   stop("'num_cuts' must have length 1 or ncol(X)")
+  # }
+  if (length(num_cuts) != 1) {
+    stop("'num_cuts' must have length 1")
+  }
+  if (!(use_quants %in% c(TRUE, FALSE))) {
+    stop("'use_quants' must be either TRUE or FALSE")
+  }
+  if (!(scale_X %in% c(TRUE, FALSE))) {
+    stop("'scale_X' must be either TRUE or FALSE")
   }
   
-  # Make stumps matrix
-  if (all(is.infinite(num_cuts))) {
-    cuts = NULL
-  } else {
-    if (length(num_cuts) == 1) {
-      num_cuts = rep(num_cuts, p)
+  # scale X if needed
+  if (scale_X) {
+    X_maxs = sparseMatrixStats::colMaxs(abs(X))
+    if (inherits(X, "CsparseMatrix")) {
+      X@x = X@x / rep.int(X_maxs, diff(X@p))
+    } else {
+      X = sweep(X, 2, X_maxs, '/')
     }
-    cuts = rep(list(NULL), p)
-    for (j in 1:p) {
-      if (is.finite(num_cuts[j])) {
-        cuts[[j]] = quantile(X[, j], probs = qbeta(seq(from = 0, to = 1, length.out = num_cuts[j] + 2), .5, .5))[-c(1, num_cuts[j] + 2)]
+    if (!is.null(X_test)) {
+      if (inherits(X_test, "CsparseMatrix")) {
+        X_test@x = X_test@x / rep.int(X_maxs, diff(X_test@p))
+      } else {
+        X_test = sweep(X_test, 2, X_maxs, '/')
       }
     }
   }
+  # get which columns to include as linear and stumps terms, if not provided
+  if (is.null(include_linear) | is.null(include_stumps)) {
+    n_unique = apply(X, 2, function(x) length(unique(x)))
+    if (is.null(include_linear)) {
+      include_linear = (n_unique > 1)
+    }
+    if (is.null(include_stumps)) {
+      include_stumps = (n_unique > 2)
+    }
+  }
+  # Make stumps matrix
+  if (is.infinite(num_cuts) | all(!include_stumps)) {
+    cuts = NULL
+  } else {
+    # if (length(num_cuts) == 1) {
+    #   num_cuts = rep(num_cuts, p)
+    # }
+    # cuts = rep(list(NULL), p)
+    # for (j in 1:p) {
+    #   if (is.finite(num_cuts[j])) {
+    #     if (use_quants) {
+    #       cuts[[j]] = quantile(X[, j], probs = qbeta(seq(from = 0, to = 1, length.out = num_cuts[j] + 2), .5, .5))[-c(1, num_cuts[j] + 2)]
+    #     } else {
+    #       cuts[[j]] = seq(from = min(X[, j]), to = max(X[, j]), length.out = num_cuts[j] + 2)[-c(1, num_cuts[j] + 2)]
+    #     }
+    #   }
+    # }
+    ppts = ppoints(num_cuts)
+    if (use_quants) {
+      col_quants = sparseMatrixStats::colQuantiles(X, probs = ppts)
+      # cuts = lapply(1:p, function(j) unique(col_quants[j, ]))
+      cuts = asplit(col_quants, 1)
+    } else {
+      col_ranges = sparseMatrixStats::colRanges(X)
+      cuts = lapply(1:p, function(j) col_ranges[j, 1]*(1 - ppts) + col_ranges[j, 2]*ppts)
+    }
+  }
   X_stumps = make_stumps_matrix(X, include_linear, include_stumps, cuts)
+  
   
   # set up testing data, if any
   X_test_stumps = NULL

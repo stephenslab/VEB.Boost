@@ -1,6 +1,6 @@
 Package: VEB.Boost
 Title: This package provides the functionality to perform VEB-Boosting.
-Version: 0.0.0.9014
+Version: 0.0.0.9015
 Authors@R: 
     person(given = "Andrew",
            family = "Goldstein",
@@ -12,6 +12,7 @@ License: What license it uses
 Encoding: UTF-8
 LazyData: true
 RoxygenNote: 7.1.0
-Imports: data.tree, parallel, spatstat.utils, Matrix, R6
+Imports: data.tree, parallel, spatstat.utils, Matrix, R6, matrixStats, sparseMatrixStats
 Suggests: knitr, rmarkdown
 VignetteBuilder: knitr
+ByteCompile: true

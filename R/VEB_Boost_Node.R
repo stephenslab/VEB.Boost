@@ -12,7 +12,6 @@ VEBBoostNode <- R6Class(
 
     fitFunction = NULL, # function that takes in predictors X, response Y, variances sigma2, and returns the fit
     # the fit must have fields mu1 (first moment), mu2 (second moment), KL_div (KL divergence from q to g),
-    # and returns a function, predFunction(X_new, method = c(1, 2)) that takes in new data X and returns our prediction for the given moment
 
     predFunction = NULL, # function to predict based on current fit
 
@@ -115,13 +114,13 @@ VEBBoostNode <- R6Class(
       return(invisible(self))
     },
 
-    convergeFit = function(tol = 1e-3, update_sigma2 = FALSE, update_ELBO_progress = TRUE, verbose = TRUE) {
+    convergeFit = function(tol = 1e-3, update_sigma2 = FALSE, update_ELBO_progress = TRUE, verbose = TRUE, maxit = Inf) {
       ELBOs = numeric(1000)
       ELBOs[1] = -Inf
       ELBOs[2] = self$root$ELBO
       i = 2
       nodes = Traverse(self$root, 'post-order')
-      while (abs(ELBOs[i] - ELBOs[i-1]) > tol) {
+      while (abs(ELBOs[i] - ELBOs[i-1]) > tol & (i-1 <= maxit)) {
         currentInputs = NULL
         # self$root$Do(function(x) currentInputs = x$updateFit(currentInputs), traversal = 'post-order')
         for (n in nodes) {
@@ -153,8 +152,8 @@ VEBBoostNode <- R6Class(
       # operator is how to combine them
       # name is what to call the combining node
 
-      learner_copy = self$clone()
-      learner_copy$X = NULL
+      self_copy = self$clone()
+      self_copy$X = NULL
 
       self$fitFunction = NULL
       self$currentFit = NULL
@@ -163,10 +162,16 @@ VEBBoostNode <- R6Class(
       self$operator = operator
       self$name = combine_name
 
-      self$AddChildNode(learner_copy)
+      self$AddChildNode(self_copy)
       self$AddChildNode(learner)
-
-      learner_copy$parent$updateMoments()
+      
+      if (all(learner$mu1 == 1 * (operator == "*")) & all(learner$mu2 == 1 * (operator == "*"))) {
+        # if adding 'null' node, only need to change the moments stored in our own private field, since everything downstream will be unchanged
+        self_copy$parent$updateMoments()
+      } else {
+        # otherwise, if adding a real sibling, have to update all ancestors
+        self_copy$parent$updateMomentsAll()
+      }
 
       return(invisible(self$root)) # return root, so we can assign entire tree to new value (in case we're splitting at root)
 
@@ -177,9 +182,9 @@ VEBBoostNode <- R6Class(
       if (self$isConstant) {
         self$isLocked = TRUE
         if (changeToConstant) {
-          self$fitFunction = private$.fitFnConstComp
-          self$predFunction = private$.predFnConstComp
-          self$constCheckFunction = private$.constCheckFnConstComp
+          self$fitFunction = fitFnConstComp
+          self$predFunction = predFnConstComp
+          self$constCheckFunction = constCheckFnConstComp
           self$updateFit()
           try({self$updateMomentsAll()}, silent = T) # needed to avoid "attempt to apply non-function" error
         }
@@ -207,6 +212,15 @@ VEBBoostNode <- R6Class(
 
       return(invisible(self$root))
     },
+    
+    unlockLearners = function(changeToConstant = TRUE) { # unlock all (non-constant) learners
+      if (changeToConstant) {
+        self$root$Do(function(node) node$isLocked = FALSE, filterFun = function(node) node$isLeaf && !node$isConstant)
+      } else {
+        self$root$Do(function(node) node$isLocked = FALSE, filterFun = function(node) node$isLeaf)
+      }
+      return(invisible(self$root))
+    },
 
     addLearnerAll = function(growMode = c("+", "*", "+*"), changeToConstant = TRUE) { # to each leaf, add a "+" and "*"
       self$root$lockLearners(growMode, changeToConstant) # lock learners
@@ -221,25 +235,27 @@ VEBBoostNode <- R6Class(
           learner_name = paste("mu_", learner$root$leafCount, sep = '')
           combine_name = paste("combine_", learner$root$leafCount, sep = '')
 
-          add_fit = list(mu1 = rep(1 * (growMode == "*"), length(learner$Y)), mu2 = rep(1 * (growMode == "*"), length(learner$Y)), KL_div = 0)
+          add_fit = list(mu1 = rep(1 * (growMode == "*"), length(learner$Y)), mu2 = rep(1 * (growMode == "*"), length(learner$Y)), KL_div = 0, V = 1)
           add_node = VEBBoostNode$new(learner_name, fitFunction = fitFn, predFunction = predFn, constCheckFunction = constCheckFn, currentFit = add_fit)
           learner$AddSiblingVEB(add_node, growMode, combine_name)
         } else {
           learner_name = paste("mu_", learner$root$leafCount, sep = '')
           combine_name = paste("combine_", learner$root$leafCount, sep = '')
 
-          add_fit = list(mu1 = rep(0, length(learner$Y)), mu2 = rep(0, length(learner$Y)), KL_div = 0)
+          add_fit = list(mu1 = rep(0, length(learner$Y)), mu2 = rep(0, length(learner$Y)), KL_div = 0, V = 1)
           add_node = VEBBoostNode$new(learner_name, fitFunction = fitFn, predFunction = predFn, constCheckFunction = constCheckFn, currentFit = add_fit)
           learner$AddSiblingVEB(add_node, "+", combine_name)
 
           learner_name = paste("mu_", learner$root$leafCount, sep = '')
           combine_name = paste("combine_", learner$root$leafCount, sep = '')
 
-          mult_fit = list(mu1 = rep(1, length(learner$Y)), mu2 = rep(1, length(learner$Y)), KL_div = 0)
+          mult_fit = list(mu1 = rep(1, length(learner$Y)), mu2 = rep(1, length(learner$Y)), KL_div = 0, V = 1)
           mult_node = VEBBoostNode$new(learner_name, fitFunction = fitFn, predFunction = predFn, constCheckFunction = constCheckFn, currentFit = mult_fit)
           learner$children[[1]]$AddSiblingVEB(mult_node, "*", combine_name)
         }
       }
+      
+      self$root$unlockLearners(changeToConstant)
 
       return(invisible(self$root))
     },
@@ -274,33 +290,8 @@ VEBBoostNode <- R6Class(
     .pred_mu2 = NULL, # prediction based on predFunction and given new data (second moment)
     .isLocked = FALSE, # locked <=> V < V_tol, or both learners directly connected (sibling and parent's sibling) are constant
     .alpha = 0, # used in multi-class learner
-    .ensemble = NULL, # used in multi-class learner, either reference to self, or multi-class learner object
-    .fitFnConstComp = function(X, Y, sigma2, init) { # constant fit function
-      if (length(sigma2) == 1) {
-        sigma2 = rep(sigma2, length(Y))
-      }
-      intercept = weighted.mean(Y, 1/sigma2)
-      KL_div = 0
-
-      mu1 = intercept
-      mu2 = intercept^2
-      return(list(mu1 = mu1, mu2 = mu2, intercept = intercept, KL_div = KL_div))
-    },
-    .predFnConstComp = function(X_new, currentFit, moment = c(1, 2)) { # constant prediction function
-      if (moment == 1) {
-        return(currentFit$intercept)
-      } else if (moment == 2) {
-        return(currentFit$intercept^2)
-      } else {
-        stop("`moment` must be either 1 or 2")
-      }
-    },
-    .constCheckFnConstComp = function(currentFit) {
-      return(TRUE)
-    },
-    .g = function(x) { # inverse logit function
-      1 / (1 + exp(-x))
-    }
+    .exposure = 1, # used in poisson.log1pexp
+    .ensemble = NULL # used in multi-class learner, either reference to self, or multi-class learner object
   ),
 
   active = list(
@@ -399,8 +390,19 @@ VEBBoostNode <- R6Class(
           } else if (self$root$family == "binomial") {
             d = self$d
             return((private$.Y - .5 + (self$alpha * d)) / d) # alpha*d needed for multi-class case
+          } else if (self$root$family == "negative.binomial") {
+            return((private$.Y - private$.exposure) / (2 * self$d * (private$.Y + private$.exposure)))
+          } else if (self$root$family == "poisson.log1pexp") {
+            return(self$mu1 + (private$.Y - private$.exposure*log1pexp(self$mu1))*(self$root$sigma2) / ((1 + exp(-self$mu1)) * log1pexp(self$mu1)))
+          } else if (self$root$family == "poisson.exp") {
+            # return(self$mu1 + (private$.Y - private$.log1pexp(self$mu1)) / ((1 / self$root$sigma2) * (1 + exp(-self$mu1)) * private$.log1pexp(self$mu1)))
+            return(self$mu1 + (private$.Y - private$.exposure*exp(self$mu1))*(self$root$sigma2))
+            # xi = self$xi
+            # return(xi + self$sigma2*(private$.Y - exp(xi)))
+            # xi = self$mu1 + sqrt(1/.05)*sqrt(self$mu2 - self$mu1^2)
+            # return(xi - 1 + (private$.Y * self$root$sigma2))
           } else {
-            stop("family must be either 'gaussian' or 'binomial")
+            stop("family must be one of 'gaussian', 'binomial', 'negative.binomial', 'poisson.log1pexp', or 'poisson.exp'")
           }
         }
         if (self$parent$operator == "+") {
@@ -436,8 +438,30 @@ VEBBoostNode <- R6Class(
             return(private$.sigma2)
           } else if (self$root$family == "binomial") {
             return(1 / self$d)
+          } else if (self$root$family == "negative.binomial") {
+            return(1 / (self$d * (private$.Y + private$.exposure)))
+          } else if (self$root$family == "poisson.log1pexp") {
+            return(1 / ((.25*private$.exposure) + .17*private$.Y))
+          } else if (self$root$family == "poisson.exp") {
+            # vars = self$root$mu2 - self$root$mu1^2
+            # get_sd = function(y, mu1, var) {
+            #   if (var <= 0) {
+            #     return(1 / (.25 + .17*y))
+            #   }
+            #   sd = sqrt(var)
+            #   h = function(x) -(exp(x)*(exp(x)*y - y*log(1 + exp(x)) + (log(1 + exp(x)))^2)) / ((1 + exp(x))^2 * (log(1 + exp(x)))^2)
+            #   h_max = optim(par = list(x = mu1), fn = h, method = 'Brent', lower = mu1 - sqrt(1/.05)*sd, upper = mu1 + sqrt(1/.05)*sd)$value
+            #   return(-1/h_max)
+            # }
+            # return(mapply(get_sd, y = private$.Y, mu1 = self$root$mu1, var = vars, SIMPLIFY = T))
+            vars = self$root$mu2 - self$root$mu1^2
+            # sigma2 = rep(1, length(vars))
+            sigma2 = log(1 + self$root$raw_Y/private$.exposure) + 3
+            sigma2[vars > 0] = log(private$.exposure) + self$root$mu1[vars > 0] + sqrt(1/.01 - 1)*sqrt(vars[vars > 0]) # use Cantelli lemma to bound right tail prob <= .01 (since curvature gets worse as x increases)
+            # sigma2 = log(1 + self$root$raw_Y) + 3
+            return(exp(-sigma2))
           } else {
-            stop("family must be either 'gaussian' or 'binomial")
+            stop("family must be one of 'gaussian', 'binomial', 'poisson.log1pexp', or 'poisson.exp'")
           }
         }
         if (self$parent$operator == "+") {
@@ -462,6 +486,29 @@ VEBBoostNode <- R6Class(
         }
       }
     },
+    
+    exposure = function(value) { # exposure variable for poisson.log1pexp
+      if (missing(value)) {
+        if (!(grepl("poisson", self$root$family, ignore.case = TRUE) | (self$root$family == "negative.binomial"))) {
+          stop("`$exposure` only used for poisson and negative binomial families")
+        }
+        if (self$isRoot) {
+          e = private$.exposure
+          if (length(e) == 1) {
+            e = rep(e, length(private$.Y))
+          }
+          return(e)
+        } else {
+          return(self$root$exposure)
+        }
+      } else {
+        if (self$isRoot) {
+          private$.exposure = value
+        } else {
+          stop("`$exposure` cannot be modified directly except at the root node", call. = FALSE)
+        }
+      }
+    }, 
 
     ELBO_progress = function(value) { # ELBO progress of tree
       if (missing(value)) {
@@ -499,11 +546,38 @@ VEBBoostNode <- R6Class(
         d = self$root$d
         xi = self$root$xi
         return(
-          sum(log(private$.g(xi))) + sum((xi / 2)*(d*xi - 1)) + sum((self$root$raw_Y - .5) * self$root$mu1) -
+          sum(log(ilogit(xi))) + sum((xi / 2)*(d*xi - 1)) + sum((self$root$raw_Y - .5) * self$root$mu1) -
             .5*sum(self$root$mu2 * d) - self$KL_div
         )
+      } else if (self$root$family == "negative.binomial") {
+        d = self$root$d
+        xi = self$root$xi
+        return(
+          sum((self$root$raw_Y + self$root$exposure) * log(ilogit(xi))) + .5*sum((self$root$raw_Y - self$root$exposure) * self$root$mu1 - (self$root$raw_Y + self$root$exposure) * xi) -
+            .5*sum(d * (self$root$raw_Y + self$root$exposure) * (self$root$mu2 - xi^2)) - 
+            sum(lgamma(self$root$raw_Y + self$root$exposure) - lgamma(self$root$exposure) - lfactorial(self$root$raw_Y)) - self$KL_div
+        )
+      } else if (self$root$family == "poisson.log1pexp") {
+        return(
+          -.5*.25*sum(self$exposure*(self$mu2 - self$mu1^2)) - .5*.17*sum(self$root$raw_Y * (self$mu2 - self$mu1^2)) + sum(self$root$raw_Y * (log(self$exposure) + loglog1pexp(self$mu1))) - sum(self$exposure*log1pexp(self$mu1)) -
+            sum(lfactorial(self$root$raw_Y)) - self$KL_div
+        )
+      } else if (self$root$family == "poisson.exp") {
+        # xi = self$xi
+        # return(
+        #   -.5*sum((self$mu2 - 2*self$mu1*xi + xi^2) / self$sigma2) + sum((private$.Y - exp(xi))*(self$mu1 - xi)) + sum(self$root$raw_Y * xi) - sum(exp(xi)) -
+        #     self$KL_div
+        # )
+        # return(
+        #   -.5*sum((self$mu2 - self$mu1^2) / self$sigma2) + sum(self$root$raw_Y * private$.loglog1pexp(self$mu1)) - sum(exp(private$.loglog1pexp(self$mu1))) -
+        #     self$KL_div
+        # )
+        return(
+          -.5*sum((self$mu2 - self$mu1^2) / self$sigma2) + sum(self$root$raw_Y * (log(self$exposure) + self$mu1)) - sum(self$exposure*exp(self$mu1)) -
+            sum(lfactorial(self$root$raw_Y)) - self$KL_div
+        )
       } else {
-        stop("family must be either 'gaussian' or 'binomial")
+        stop("family must be one of 'gaussian', 'binomial', 'poisson.log1pexp', or 'poisson.exp'")
       }
     },
 
@@ -517,6 +591,28 @@ VEBBoostNode <- R6Class(
       return(self$ensemble$alpha) # otherwise, return ensemble's alpha
     },
 
+    # xi = function(value) { # optimal variational parameters, set to +sqrt(mu2)
+    #   if (!missing(value)) {
+    #     stop("`$xi` cannot be modified directly", call. = FALSE)
+    #   }
+    #   if (self$root$family == 'binomial') {
+    #     return(sqrt(self$root$mu2 + self$alpha^2 - 2*self$alpha*self$root$mu1))
+    #   } else if (self$root$family == 'poisson') {
+    #     f = function(xi, mu=1, sigma2=1, k=sqrt(20)) {
+    #       -(.5*exp(mu + k*sqrt(sigma2))*(sigma2 + mu^2) + (exp(xi) - xi*exp(mu + k*sqrt(sigma2)))*mu + (exp(xi) - xi*exp(xi) + .5*exp(mu + k*sqrt(sigma2))*xi^2))
+    #     }
+    #     get_xi = function(mu, sigma2) {
+    #       if (sigma2 <= 0) {
+    #         return(mu)
+    #       }
+    #       optim(list(xi = mu), fn = function(x) f(x, mu, sigma2), method = 'Brent', lower = mu - sqrt(20 * sigma2), upper = mu + sqrt(20 * sigma2))$par
+    #     }
+    #     mu = self$mu1
+    #     sigma2 = self$mu2 - self$mu1^2
+    #     xis = mapply(get_xi, mu = mu, sigma2 = sigma2, SIMPLIFY = T)
+    #     return(xis)
+    #   }
+    # },
     xi = function(value) { # optimal variational parameters, set to +sqrt(mu2)
       if (!missing(value)) {
         stop("`$xi` cannot be modified directly", call. = FALSE)
@@ -529,7 +625,7 @@ VEBBoostNode <- R6Class(
         stop("'$d' cannot be modified directly", call. = FALSE)
       }
       xi = self$xi
-      g_xi = private$.g(xi) # matrix of g(xi_i,k), pre-compute once
+      g_xi = ilogit(xi) # matrix of g(xi_i,k), pre-compute once
       d = ((g_xi - .5) / xi) # matrix of (g(xi_i,k) - .5) / xi_i,k, pre-compute once
       d[xi == 0] = .25 # case of 0/0 (e.g. x_i is all 0), use L'Hopital
       return(d)
