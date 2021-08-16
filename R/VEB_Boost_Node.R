@@ -137,7 +137,7 @@ VEBBoostNode <- R6Class(
           self$root$updateSigma2()
         }
         i = i+1
-        if (all(self$root$raw_sigma2 == 0)) { # if estimate sigma2 is 0, stop
+        if (all(self$root$sigma2 == 0)) { # if estimate sigma2 is 0, stop
           ELBOs[i] = Inf
           break
         }
