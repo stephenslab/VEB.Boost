@@ -111,10 +111,12 @@ VEBBoostNode <- R6Class(
 
     updateSigma2 = function() { # function to update sigma2
       if (self$root$family == "aft.loglogistic") {
-        n_notcens = sum(self$root$exposure)
-        t1 = sum((1 - self$root$exposure)*(self$root$mu1 - log(self$root$raw_Y)))
-        t2 = t1^2 + 8*(n_notcens)*sum((self$root$d * (self$root$mu2 - 2*self$root$mu1*log(self$root$raw_Y) + log(self$root$raw_Y)^2) * (2 - self$root$exposure)))
-        self$sigma2 = (t1^2 - 2*t1*sqrt(t2) + t2) / (16 * n_notcens^2)
+        a = sum(self$root$exposure)
+        b = .5 * sum((1 - self$root$exposure)*(self$root$mu1 - log(self$root$raw_Y)))
+        c = -sum((self$root$d * (self$root$mu2 - 2*self$root$mu1*log(self$root$raw_Y) + log(self$root$raw_Y)^2) * (1 + self$root$exposure)))
+        # sigma = (abs(b) + sqrt(b^2 - 4*a*c)) / (2*a)
+        sigma = max((2*c) / (-b + sqrt(b^2 - 4*a*c)), (2*c) / (-b - sqrt(b^2 - 4*a*c))) # numerically stable quadratic formula (Citardauq Formula)
+        self$sigma2 = sigma^2
       } else {
         self$sigma2 = ((sum(self$root$Y^2) - 2*sum(self$root$Y*self$root$mu1) + sum(self$root$mu2))) / length(self$root$Y)
       }
@@ -474,7 +476,7 @@ VEBBoostNode <- R6Class(
             # sigma2 = log(1 + self$root$raw_Y) + 3
             return(exp(-sigma2))
           } else if (self$root$family == "aft.loglogistic") {
-            return((1 + self$root$exposure) * private$.sigma2 / self$d)
+            return(private$.sigma2 / ((1 + self$root$exposure) * self$d))
           }
           else {
             stop("family must be one of 'gaussian', 'binomial', 'negative.binomial', poisson.log1pexp', 'poisson.exp', or 'aft.loglogistic")
@@ -604,8 +606,8 @@ VEBBoostNode <- R6Class(
             sum(lfactorial(self$root$raw_Y)) - self$KL_div
         )
       } else if (self$root$family == "aft.loglogistic") {
-        -.5*sum(log(self$root$raw_sigma2)*self$root$exposure + (1-self$root$exposure)*(log(self$root$raw_Y) - self$root$mu1)/(self$root$raw_sigma2)) - .5*sum(self$d * (self$root$mu2 - 2*self$root$mu1*self$root$Y + self$root$Y^2)/((1 + self$root$exposure) * self$root$raw_sigma2) - (1 + self$root$exposure)*self$xi^2) -
-          sum(log(exp(self$xi/2) + exp(-self$xi/2))) - self$KL_div
+        -.5*sum(log(self$root$raw_sigma2)*self$root$exposure + (1-self$root$exposure)*(log(self$root$raw_Y) - self$root$mu1)/(self$root$raw_sigma2)) - .5*sum((1 + self$root$exposure) * self$d * (self$root$mu2 - 2*self$root$mu1*self$root$Y + self$root$Y^2)/((1 + 3*self$root$exposure) * self$root$raw_sigma2) - self$xi^2) -
+          sum((1 + self$root$exposure) * log(exp(self$xi/2) + exp(-self$xi/2))) - self$KL_div
       }
       else {
         stop("family must be one of 'gaussian', 'binomial', 'negative.binomial', poisson.log1pexp', 'poisson.exp', or 'aft.loglogistic")
@@ -649,7 +651,7 @@ VEBBoostNode <- R6Class(
         stop("`$xi` cannot be modified directly", call. = FALSE)
       }
       if (self$root$family == "aft.loglogistic") {
-        return((1 / (1 + self$root$exposure)) * sqrt((1 / self$root$raw_sigma2) * (self$root$mu2 - 2*self$root$mu1*log(self$root$raw_Y) + log(self$root$raw_Y)^2)))
+        return(sqrt((1 / self$root$raw_sigma2) * (self$root$mu2 - 2*self$root$mu1*log(self$root$raw_Y) + log(self$root$raw_Y)^2)))
       }
       return(sqrt(self$root$mu2 + self$alpha^2 - 2*self$alpha*self$root$mu1))
     },
