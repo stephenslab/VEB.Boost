@@ -54,8 +54,9 @@
 #'
 #' @param tol is a positive scalar specifying the level of convergence to be used
 #' 
-#' @param exposure is a scalar or a vector used for the Poisson regression case. Here, we assume that the response
+#' @param exposure is a scalar or a vector used for the Poisson regression, NB, and AFT cases. For Poisson, we assume that the response
 #' \deqn{Y_i \sim Pois(c_i \lambda_i)} for given exposure \deqn{c_i}, and we model \deqn{\lambda_i}
+#' For AFT, exposure is 1 for non-censored observations, and 0 for right-censored observations
 #'
 #' @param verbose is a logical flag specifying whether we should report convergence information as we go
 #'
@@ -113,10 +114,13 @@
 
 veb_boost = function(X, Y, X_test = NULL, fitFunctions, predFunctions, constCheckFunctions,
                      growTree = TRUE, k = 1, d = 1, growMode = c("+*", "+", "*"), addMrAsh = FALSE, 
-                     changeToConstant = FALSE, family = c("gaussian", "binomial", "multinomial", "negative.binomial", "poisson.log1pexp", "poisson.exp"),
+                     changeToConstant = FALSE, family = c("gaussian", "binomial", "multinomial", "negative.binomial", "poisson.log1pexp", "poisson.exp", "aft.loglogistic"),
                      exposure = NULL, tol = length(Y) / 10000, verbose = TRUE, mc.cores = 1) {
 
   ### Check Inputs ###
+  if (!is.vector(Y)) {
+    stop("'Y' must be a vector. Maybe it's a matrix with one column?")
+  }
   # Logical Flags
   if (!(growTree %in% c(TRUE, FALSE))) {
     stop("'growTree' must be either TRUE or FALSE")
@@ -158,14 +162,21 @@ veb_boost = function(X, Y, X_test = NULL, fitFunctions, predFunctions, constChec
   # Family
   family = match.arg(family)
   # Exposure
-  if (!(grepl("poisson", family, ignore.case = TRUE) | family == "negative.binomial")) {
+  if (!(grepl("poisson", family, ignore.case = TRUE) | family == "negative.binomial" | family == "aft.loglogistic")) {
     if (!is.null(exposure)) {
-      warning("Argument 'exposure' is only used in the Poisson or negative binomial cases, ignoring supplied input")
+      warning("Argument 'exposure' is only used in the Poisson, negative binomial, or AFT cases, ignoring supplied input")
     }
   } else {
     if (is.null(exposure)) {
-      warning("Argument 'exposure' must be supplied in the Poisson or negative binomial cases, setting to 1")
+      warning("Argument 'exposure' must be supplied in the Poisson, negative binomial, or AFT cases, setting to 1")
       exposure = rep(1, length(Y))
+    }
+  }
+  if (!is.null(exposure)) {
+    if ((family == "aft.loglogistic") && !all(exposure %in% c(0, 1))) {
+      stop("When using the 'aft.loglogistic' family, all 'exposure' values must be either 1 (not censored) or 0 (right-censored)")
+    } else if (any(exposure < 0)) {
+      stop("When using the poisson on NB families, 'exposure' must be positive")
     }
   }
   # Tolerance
@@ -182,6 +193,9 @@ veb_boost = function(X, Y, X_test = NULL, fitFunctions, predFunctions, constChec
   if ((grepl("poisson", family, ignore.case = TRUE) | family == "negative.binomial") && (any(Y < 0) || any(Y %% 1 != 0))) {
     stop("'Y' must be positive integers when using Poisson or negative binomial response")
   }
+  if ((family == "aft.loglogistic") && any(Y <= 0)) {
+    stop("'Y' must be positive when using the AFT model")
+  }
   # mc.cores
   if (mc.cores != 1) {
     message("Parallel multinomial updates not currently supported, setting 'mc.cores' to 1")
@@ -189,14 +203,16 @@ veb_boost = function(X, Y, X_test = NULL, fitFunctions, predFunctions, constChec
   }
 
   ### Run Gaussian/Binomial Cases ###
-  if (family %in% c("gaussian", "binomial", "negative.binomial", "poisson.log1pexp", "poisson.exp")) {
+  if (family %in% c("gaussian", "binomial", "negative.binomial", "poisson.log1pexp", "poisson.exp", "aft.loglogistic")) {
     # initialize tree
     learner = initialize_veb_boost_tree(X = X, Y = Y, k = k, d = d, fitFunctions = fitFunctions, predFunctions = predFunctions,
                                                constCheckFunctions = constCheckFunctions, addMrAsh = addMrAsh, family = family, exposure = exposure)
     if (family == "gaussian") {
       learner$sigma2 = var(Y)
+    } else if (family == "aft.loglogistic") {
+      learner$sigma2 = var(log(Y))
     }
-    update_sigma2 = (family == "gaussian") # only update variance if Gaussian response
+    update_sigma2 = (family %in% c("gaussian", "aft.loglogistic")) # only update variance if Gaussian , or AFT model
 
     # converge fit once
     learner$convergeFit(tol, update_sigma2 = update_sigma2, verbose = FALSE)
@@ -211,7 +227,7 @@ veb_boost = function(X, Y, X_test = NULL, fitFunctions, predFunctions, constChec
       learner$convergeFitAll(tol = tol, update_sigma2 = update_sigma2, growMode = growMode, changeToConstant = changeToConstant, verbose = FALSE)
 
       while ((tail(tail(learner$ELBO_progress, 1)[[1]], 1) - tail(tail(learner$ELBO_progress, 2)[[1]], 1) > tol) && 
-             (length(Traverse(learner, filterFun = function(node) node$isLeaf & !node$isLocked)) > 0)) {
+             (length(Traverse(learner, filterFun = function(node) node$isLeaf & !node$isLocked)) > 0) && (tail(tail(learner$ELBO_progress, 1)[[1]], 1) != Inf)) {
         if (verbose) {
           cat(paste("ELBO: ", round(learner$ELBO, 3), sep = ""))
           cat("\n")

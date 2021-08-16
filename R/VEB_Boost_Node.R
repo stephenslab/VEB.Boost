@@ -110,7 +110,14 @@ VEBBoostNode <- R6Class(
     },
 
     updateSigma2 = function() { # function to update sigma2
-      self$sigma2 = ((sum(self$root$Y^2) - 2*sum(self$root$Y*self$root$mu1) + sum(self$root$mu2))) / length(self$root$Y)
+      if (self$root$family == "aft.loglogistic") {
+        n_notcens = sum(self$root$exposure)
+        t1 = sum((1 - self$root$exposure)*(self$root$mu1 - log(self$root$raw_Y)))
+        t2 = t1^2 + 8*(n_notcens)*sum((self$root$d * (self$root$mu2 - 2*self$root$mu1*log(self$root$raw_Y) + log(self$root$raw_Y)^2) * (2 - self$root$exposure)))
+        self$sigma2 = (t1^2 - 2*t1*sqrt(t2) + t2) / (16 * n_notcens^2)
+      } else {
+        self$sigma2 = ((sum(self$root$Y^2) - 2*sum(self$root$Y*self$root$mu1) + sum(self$root$mu2))) / length(self$root$Y)
+      }
       return(invisible(self))
     },
 
@@ -130,6 +137,10 @@ VEBBoostNode <- R6Class(
           self$root$updateSigma2()
         }
         i = i+1
+        if (all(self$root$raw_sigma2 == 0)) { # if estimate sigma2 is 0, stop
+          ELBOs[i] = Inf
+          break
+        }
         if (i > length(ELBOs)) { # double size of ELBOs for efficiency rather than making it bigger each iteration
           ELBOs = c(ELBOs, rep(0, i))
         }
@@ -401,8 +412,10 @@ VEBBoostNode <- R6Class(
             # return(xi + self$sigma2*(private$.Y - exp(xi)))
             # xi = self$mu1 + sqrt(1/.05)*sqrt(self$mu2 - self$mu1^2)
             # return(xi - 1 + (private$.Y * self$root$sigma2))
+          } else if (self$root$family == "aft.loglogistic") {
+            return(log(private$.Y) + (1 - self$root$exposure)*sqrt(self$root$raw_sigma2)/(2*self$root$d))
           } else {
-            stop("family must be one of 'gaussian', 'binomial', 'negative.binomial', 'poisson.log1pexp', or 'poisson.exp'")
+            stop("family must be one of 'gaussian', 'binomial', 'negative.binomial', 'poisson.log1pexp', 'poisson.exp', or 'aft.loglogistic")
           }
         }
         if (self$parent$operator == "+") {
@@ -460,8 +473,11 @@ VEBBoostNode <- R6Class(
             sigma2[vars > 0] = log(private$.exposure) + self$root$mu1[vars > 0] + sqrt(1/.01 - 1)*sqrt(vars[vars > 0]) # use Cantelli lemma to bound right tail prob <= .01 (since curvature gets worse as x increases)
             # sigma2 = log(1 + self$root$raw_Y) + 3
             return(exp(-sigma2))
-          } else {
-            stop("family must be one of 'gaussian', 'binomial', 'poisson.log1pexp', or 'poisson.exp'")
+          } else if (self$root$family == "aft.loglogistic") {
+            return((1 + self$root$exposure) * private$.sigma2 / self$d)
+          }
+          else {
+            stop("family must be one of 'gaussian', 'binomial', 'negative.binomial', poisson.log1pexp', 'poisson.exp', or 'aft.loglogistic")
           }
         }
         if (self$parent$operator == "+") {
@@ -487,10 +503,21 @@ VEBBoostNode <- R6Class(
       }
     },
     
-    exposure = function(value) { # exposure variable for poisson.log1pexp
+    raw_sigma2 = function(value) { # raw value of private$.sigma2 from root
+      if (!missing(value)) {
+        stop("`$raw_sigma2` cannot be modified directly", call. = FALSE)
+      }
+      if (self$isRoot) {
+        return(private$.sigma2)
+      } else {
+        return(self$parent$raw_sigma2)
+      }
+    },
+    
+    exposure = function(value) { # exposure variable for poisson or NB, or AFT (for right-censorship info, 1 for censored, 0 for not censored)
       if (missing(value)) {
-        if (!(grepl("poisson", self$root$family, ignore.case = TRUE) | (self$root$family == "negative.binomial"))) {
-          stop("`$exposure` only used for poisson and negative binomial families")
+        if (!(grepl("poisson", self$root$family, ignore.case = TRUE) | (self$root$family == "negative.binomial") | (self$root$family == "aft.loglogistic"))) {
+          stop("`$exposure` only used for poisson, negative binomial, or AFT families")
         }
         if (self$isRoot) {
           e = private$.exposure
@@ -576,8 +603,12 @@ VEBBoostNode <- R6Class(
           -.5*sum((self$mu2 - self$mu1^2) / self$sigma2) + sum(self$root$raw_Y * (log(self$exposure) + self$mu1)) - sum(self$exposure*exp(self$mu1)) -
             sum(lfactorial(self$root$raw_Y)) - self$KL_div
         )
-      } else {
-        stop("family must be one of 'gaussian', 'binomial', 'poisson.log1pexp', or 'poisson.exp'")
+      } else if (self$root$family == "aft.loglogistic") {
+        -.5*sum(log(self$root$raw_sigma2)*self$root$exposure + (1-self$root$exposure)*(log(self$root$raw_Y) - self$root$mu1)/(self$root$raw_sigma2)) - .5*sum(self$d * (self$root$mu2 - 2*self$root$mu1*self$root$Y + self$root$Y^2)/((1 + self$root$exposure) * self$root$raw_sigma2) - (1 + self$root$exposure)*self$xi^2) -
+          sum(log(exp(self$xi/2) + exp(-self$xi/2))) - self$KL_div
+      }
+      else {
+        stop("family must be one of 'gaussian', 'binomial', 'negative.binomial', poisson.log1pexp', 'poisson.exp', or 'aft.loglogistic")
       }
     },
 
@@ -616,6 +647,9 @@ VEBBoostNode <- R6Class(
     xi = function(value) { # optimal variational parameters, set to +sqrt(mu2)
       if (!missing(value)) {
         stop("`$xi` cannot be modified directly", call. = FALSE)
+      }
+      if (self$root$family == "aft.loglogistic") {
+        return((1 / (1 + self$root$exposure)) * sqrt((1 / self$root$raw_sigma2) * (self$root$mu2 - 2*self$root$mu1*log(self$root$raw_Y) + log(self$root$raw_Y)^2)))
       }
       return(sqrt(self$root$mu2 + self$alpha^2 - 2*self$alpha*self$root$mu1))
     },

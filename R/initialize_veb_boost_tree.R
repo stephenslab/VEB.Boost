@@ -23,7 +23,7 @@
 #' @param family is what family the response is
 
 initialize_veb_boost_tree = function(X, Y, k = 1, d = 1, fitFunctions = list(fitFnSusieStumps), predFunctions = list(predFnSusieStumps),
-                                     constCheckFunctions = list(constCheckFnSusieStumps), addMrAsh = FALSE, family = c("gaussian", "binomial", "negative.binomial", "poisson.log1pexp", "poisson.exp"), exposure = NULL) {
+                                     constCheckFunctions = list(constCheckFnSusieStumps), addMrAsh = FALSE, family = c("gaussian", "binomial", "negative.binomial", "poisson.log1pexp", "poisson.exp", "aft.loglogistic"), exposure = NULL) {
   family = match.arg(family)
   if (length(d) == 1) {
     d = rep(d, k)
@@ -59,6 +59,8 @@ initialize_veb_boost_tree = function(X, Y, k = 1, d = 1, fitFunctions = list(fit
   } else if (family == "poisson.exp") {
     mu_init = mean(log(Y + 1e-8) - log(exposure)) / k
     # mu_init = 0
+  } else if (family == "aft.loglogistic") {
+    mu_init = mean(log(Y)) / k
   } else {
     mu_init = 0
   }
