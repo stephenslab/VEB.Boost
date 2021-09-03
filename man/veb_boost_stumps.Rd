@@ -8,9 +8,11 @@ veb_boost_stumps(
   X,
   Y,
   X_test = NULL,
-  include_linear = TRUE,
-  include_stumps = TRUE,
-  num_cuts = 100,
+  include_linear = NULL,
+  include_stumps = NULL,
+  num_cuts = ceiling(min(length(Y)/5, max(100, sqrt(length(Y))))),
+  use_quants = TRUE,
+  scale_X = TRUE,
   ...
 )
 }
@@ -22,16 +24,24 @@ veb_boost_stumps(
 \item{X_test}{is an optional (m X p) matrix to be used as the testing data. Posterior mean response is saved in the output's field \code{$pred_mu1}}
 
 \item{include_linear}{is a logical of length 1 or p specifying which columns of X we should include as linear terms.
-If the length is 1, this value gets recycled for all columns of X.}
+If the length is 1, this value gets recycled for all columns of X.
+If NULL is supplied, then all valid linear terms are used.}
 
 \item{include_stumps}{is a logical of length 1 or p specifying which columns of X we should include as stump terms
-If the length is 1, this value gets recycled for all columns of X.}
+If the length is 1, this value gets recycled for all columns of X.
+If NULL is supplied, then all valid stumps terms are used.}
 
 \item{num_cuts}{is a whole number of length 1 or p specifying how many cuts to make when making the stumps terms.
 If the length is 1, this value gets recycled for all columns of X.
 For entries corresponding to the indices where \code{include_stumps} is FALSE, these values are ignored.
 We use the quantiles from each predictor when making the stumps splits, using \code{num_cuts} of them.
 If \code{num_cuts = Inf}, then all values of the variables are used as split points.}
+
+\item{use_quants}{is a logical for if the cut-points should be based off of the quantiles (`use_quants = TRUE`), or if the
+cut points should be evenly spaced in the range of the variable (`use_quants = FALSE`).}
+
+\item{scale_X}{is a logical for if the columns of X should be scaled to be on the [-1, 1] scale (i.e. divide each column
+by its maximum absolute value). This puts the linear terms on the same scale as the stumps terms (which are binary).}
 
 \item{...}{Other arguments to be passed to \code{\link{veb_boost}}}
 }

@@ -12,7 +12,11 @@ initialize_veb_boost_tree(
   fitFunctions = list(fitFnSusieStumps),
   predFunctions = list(predFnSusieStumps),
   constCheckFunctions = list(constCheckFnSusieStumps),
-  family = c("gaussian", "binomial")
+  addMrAsh = FALSE,
+  R = NULL,
+  family = c("gaussian", "binomial", "negative.binomial", "poisson.log1pexp",
+    "poisson.exp", "aft.loglogistic"),
+  exposure = NULL
 )
 }
 \arguments{
@@ -32,6 +36,10 @@ each term of the sum of nodes}
 
 \item{constCheckFunctions}{is a list of length 1 or `k` of constant check functions to be used in
 each term of the sum of nodes}
+
+\item{addMrAsh}{is a logical for if a mr.ash learner should be added to the VEB-Boost tree}
+
+\item{R}{is a correlation matrix for any random effect to be added to the VEB-Boost tree (if NULL, no random intercept is included)}
 
 \item{family}{is what family the response is}
 }

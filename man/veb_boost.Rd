@@ -15,8 +15,12 @@ veb_boost(
   k = 1,
   d = 1,
   growMode = c("+*", "+", "*"),
-  changeToConstant = TRUE,
-  family = c("gaussian", "binomial", "multinomial"),
+  addMrAsh = FALSE,
+  R = NULL,
+  changeToConstant = FALSE,
+  family = c("gaussian", "binomial", "multinomial", "negative.binomial",
+    "poisson.log1pexp", "poisson.exp", "aft.loglogistic"),
+  exposure = NULL,
   tol = length(Y)/10000,
   verbose = TRUE,
   mc.cores = 1
@@ -55,10 +59,18 @@ If \code{+*}, we grow mu_0 -> (mu_0 * mu_2) + mu_1
 If \code{+}, we grow mu_0 -> (mu_0 + mu_1)
 If \code{*}, we grow mu_0 -> (mu_0 * mu_1) (NOTE: Not recommended if we start with \code{k = 1})}
 
+\item{addMrAsh}{a logical flag for if a Mr.Ash fit should be added to the full tree to "regress out" linear effects}
+
+\item{R}{is a correlation matrix for any random effect to be added to the VEB-Boost tree (if NULL, no random intercept is included)}
+
 \item{changeToConstant}{is a flag for if, when the fit is found to be basically constant, if we should actually change
 the fitting function of that node to fit exactly a constant value}
 
 \item{family}{is what family the response is}
+
+\item{exposure}{is a scalar or a vector used for the Poisson regression, NB, and AFT cases. For Poisson, we assume that the response
+\deqn{Y_i \sim Pois(c_i \lambda_i)} for given exposure \deqn{c_i}, and we model \deqn{\lambda_i}
+For AFT, exposure is 1 for non-censored observations, and 0 for right-censored observations}
 
 \item{tol}{is a positive scalar specifying the level of convergence to be used}
 
