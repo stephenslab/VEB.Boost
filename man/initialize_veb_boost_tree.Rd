@@ -15,7 +15,7 @@ initialize_veb_boost_tree(
   addMrAsh = FALSE,
   R = NULL,
   family = c("gaussian", "binomial", "negative.binomial", "poisson.log1pexp",
-    "poisson.exp", "aft.loglogistic"),
+    "poisson.exp", "aft.loglogistic", "ordinal.logistic"),
   exposure = NULL
 )
 }

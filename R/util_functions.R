@@ -29,7 +29,7 @@ ilogit = function(x) { # inverse logit function
   1 / (1 + exp(-x))
 }
 
-# numerically stable log(log(1 + exp(x)))
+# numerically stable log(1 + exp(x))
 # see https://cran.r-project.org/web/packages/Rmpfr/vignettes/log1mexp-note.pdf formula 10
 #' @keywords internal
 log1pexp = function(x) {

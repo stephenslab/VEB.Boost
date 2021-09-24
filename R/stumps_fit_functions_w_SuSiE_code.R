@@ -51,7 +51,8 @@ weighted_SER = function(X, Y, sigma2, init = list(V = NULL)) {
     p_lin = get_ncol(X[[1]])
   }
   p_stumps = p - p_lin
-  prior_weights = c(rep(.5 / p_lin, p_lin), rep(.5 / p_stumps, p_stumps)) * ifelse(p_lin * p_stumps == 0, 2, 1)
+  # prior_weights = c(rep(.5 / p_lin, p_lin), rep(.5 / p_stumps, p_stumps)) * ifelse(p_lin * p_stumps == 0, 2, 1)
+  prior_weights = c(rep(.5 / p_lin, p_lin), rep(.5 / p_stumps, p_stumps)) / (.5*(p_lin != 0) + .5*(p_stumps != 0))
   # prior_weights = rep(1 / p, p)
 
   Y_avg = sum(Y * w)

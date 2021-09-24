@@ -17,13 +17,13 @@ make_tfg_matrix = function(t, br = t, order = 0) {
   attr(X, "order") = order
   attr(X,"br") <- br
   order_t <- order(t)
-  counts = matrixStats::binCounts(t, bx = c(-.Machine$double.xmax,br,.Machine$double.xmax), right=TRUE) #hist(t, breaks = c(-Inf,br,Inf), plot=FALSE)$counts
+  counts = binCounts(t, bx = c(-.Machine$double.xmax, br, .Machine$double.xmax), right=TRUE) #hist(t, breaks = c(-Inf,br,Inf), plot=FALSE)$counts
   attr(X, "null_bin") <- which.max(counts)
   attr(X,"bin_to_t") <- cumsum(counts)
   t_to_bin <- .bincode(t,breaks = c(-Inf,br,Inf))
   i = which(t_to_bin != attr(X, "null_bin"))
   nz = t_to_bin[i]
-  attr(X,"t_to_bin") <- Matrix::sparseVector(nz, i, length = n) # .bincode for t as a sparse vector, 0 signifies the "null bin"
+  attr(X,"t_to_bin") <- sparseVector(nz, i, length = n) # .bincode for t as a sparse vector, 0 signifies the "null bin"
   if (length(attr(X,"t_to_bin")@i) / attr(X,"t_to_bin")@length > .5) { # if more efficient to store as regular vector, change to regular vector
     attr(X,"t_to_bin") = rep(attr(X, "null_bin"), n)
     attr(X,"t_to_bin")[i] = nz
@@ -88,12 +88,12 @@ make_stumps_matrix = function(X, include_linear, include_stumps, Xtrain = NULL) 
   return(xl)
 }
 
-#' @importFrom spatstat.utils revcumsum
 # over-write stumps multiplication (WHY IS THERE A -1*.... ?!?!?)
 #' @title Compute unscaled X \%*\% b using the special structure of trend filtering
 #' @param X a tfg_matrix created by make_tfg_matrix
 #' @param b a p vector of the changes at each change point
 #' @return an n vector of the means at each data point
+#' @importFrom spatstat.utils revcumsum
 #' @keywords internal
 compute_tfg_Xb = function(X,b){
   order = get_order(X)
@@ -125,5 +125,10 @@ compute_tfg_Xty = function(X,y){
   for (i in 1:(order+1)){
     y = cumsum(y)
   }
-  return(y[attr(X,"bin_to_t")])
+  y = y[attr(X,"bin_to_t")]
+  # corner case where first bucket has no obs
+  if (attr(X, "bin_to_t")[1] == 0) {
+    y = c(0, y)
+  }
+  return(y)
 }

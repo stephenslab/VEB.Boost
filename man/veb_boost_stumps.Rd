@@ -12,7 +12,7 @@ veb_boost_stumps(
   include_stumps = NULL,
   num_cuts = ceiling(min(length(Y)/5, max(100, sqrt(length(Y))))),
   use_quants = TRUE,
-  scale_X = TRUE,
+  scale_X = c("max", "sd", "NA"),
   ...
 )
 }
@@ -40,8 +40,10 @@ If \code{num_cuts = Inf}, then all values of the variables are used as split poi
 \item{use_quants}{is a logical for if the cut-points should be based off of the quantiles (`use_quants = TRUE`), or if the
 cut points should be evenly spaced in the range of the variable (`use_quants = FALSE`).}
 
-\item{scale_X}{is a logical for if the columns of X should be scaled to be on the [-1, 1] scale (i.e. divide each column
-by its maximum absolute value). This puts the linear terms on the same scale as the stumps terms (which are binary).}
+\item{scale_X}{is a string for if/how the columns of X should be scaled.
+'max' scales by the maximum absolute value (so variables are on the [-1, +1] scale).
+'sd' scales by the standard deviations of the variables.
+'NA' performs no scaling.}
 
 \item{...}{Other arguments to be passed to \code{\link{veb_boost}}}
 }

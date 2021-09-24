@@ -15,13 +15,14 @@ veb_boost(
   k = 1,
   d = 1,
   growMode = c("+*", "+", "*"),
+  sigma2 = NULL,
   addMrAsh = FALSE,
   R = NULL,
   changeToConstant = FALSE,
   family = c("gaussian", "binomial", "multinomial", "negative.binomial",
-    "poisson.log1pexp", "poisson.exp", "aft.loglogistic"),
+    "poisson.log1pexp", "poisson.exp", "aft.loglogistic", "ordinal.logistic"),
   exposure = NULL,
-  tol = length(Y)/10000,
+  tol = nrow(as.matrix(Y))/10000,
   verbose = TRUE,
   mc.cores = 1
 )
@@ -30,7 +31,11 @@ veb_boost(
 \item{X}{is a predictor object to be used.
 This object can take any form, so long as the user-supplied \code{fitFunctions} and \code{predFunctions} know how to use them.}
 
-\item{Y}{is a numeric vector response}
+\item{Y}{is a numeric response. For all but the 'aft.loglogistic' family, this should be an n-vector.
+For the 'aft.loglogistic' family, this should be an n x 2 matrix, with the first column being the left end-point of survival time
+and the second column being the right end-point of survival time (used for interval-censored observations)..
+In the case of left-censored data, the left end-point should be 'NA', and in the case of right-censored data, the right end-point should be 'NA'.
+If the observation is uncensored, both end-points should be equal to the observed survival time.}
 
 \item{X_test}{is an optional predictor object to be used as the testing data. Posterior mean response is saved in the output's field \code{$pred_mu1}.
 Alternatively, after running \code{veb_boost}, the user can call the \code{$predict} method on the output, with \code{X_test} as the first
@@ -58,6 +63,10 @@ zero. When this happens, we end up dividing by 0 in places, and this results in 
 If \code{+*}, we grow mu_0 -> (mu_0 * mu_2) + mu_1
 If \code{+}, we grow mu_0 -> (mu_0 + mu_1)
 If \code{*}, we grow mu_0 -> (mu_0 * mu_1) (NOTE: Not recommended if we start with \code{k = 1})}
+
+\item{sigma2}{is a scalar/n-vector specifying a fixed residual variance. If not NULL, then the residual variance will be
+fixed to this value/vector. If NULL, then it will be initialized and updated automatically.
+This should be left as NULL unless you really know what you're doing. For safety, this can only be not NULL if family is gaussian}
 
 \item{addMrAsh}{a logical flag for if a Mr.Ash fit should be added to the full tree to "regress out" linear effects}
 

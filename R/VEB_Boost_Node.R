@@ -18,6 +18,8 @@ VEBBoostNode <- R6Class(
     constCheckFunction = NULL, # function to check if fit is constant
 
     family = "gaussian",
+    
+    cutpoints = NULL, # cutpoints for ordinal regression
 
     AddChildVEB = function(name, check = c("check", "no-warn", "no-check"), ...) { # add VEB node as child
       child = VEBBoostNode$new(as.character(name), check, ...)
@@ -111,12 +113,63 @@ VEBBoostNode <- R6Class(
 
     updateSigma2 = function() { # function to update sigma2
       if (self$root$family == "aft.loglogistic") {
-        a = sum(self$root$exposure)
-        b = .5 * sum((1 - self$root$exposure)*(self$root$mu1 - log(self$root$raw_Y)))
-        c = -sum((self$root$d * (self$root$mu2 - 2*self$root$mu1*log(self$root$raw_Y) + log(self$root$raw_Y)^2) * (1 + self$root$exposure)))
-        # sigma = (abs(b) + sqrt(b^2 - 4*a*c)) / (2*a)
-        sigma = max((2*c) / (-b + sqrt(b^2 - 4*a*c)), (2*c) / (-b - sqrt(b^2 - 4*a*c))) # numerically stable quadratic formula (Citardauq Formula)
-        self$sigma2 = sigma^2
+        a1 = -sum(attr(self$root$raw_Y, 'not_cens'))
+        a2 = .5*(sum(attr(self$root$raw_Y, 'log_Y')[attr(self$root$raw_Y, 'left_cens'), 2] - self$root$mu1[attr(self$root$raw_Y, 'left_cens')]) + 
+                  sum(self$root$mu1[attr(self$root$raw_Y, 'right_cens')] - attr(self$root$raw_Y, 'log_Y')[attr(self$root$raw_Y, 'right_cens'), 1]) - 
+                  sum(attr(self$root$raw_Y, 'log_Y')[attr(self$root$raw_Y, 'int_cens'), ]))
+        a3 = -.5*sum(self$root$d*(cbind(self$root$mu2, self$root$mu2) - 2*cbind(self$root$mu1, self$root$mu1)*attr(self$root$raw_Y, 'log_Y') + attr(self$root$raw_Y, 'log_Y')^2), na.rm = TRUE)
+        nll.logscale = function(lS) {
+          -(a1*lS + a2*exp(-lS) + a3*exp(-2*lS) + 
+              sum(attr(self$root$raw_Y, 'log_Y')[attr(self$root$raw_Y, 'int_cens'), 2])/exp(lS) + 
+              sum(log(-expm1((attr(self$root$raw_Y, 'log_Y')[attr(self$root$raw_Y, 'int_cens'), 1] - attr(self$root$raw_Y, 'log_Y')[attr(self$root$raw_Y, 'int_cens'), 2])/exp(lS)))))
+        }
+        lS = optim(par = .5*log(self$raw_sigma2), fn = nll.logscale, method = 'Brent', lower = -15, upper = 35)$par
+        self$sigma2 = exp(2*lS)
+      } else if (self$root$family == "ordinal.logistic") {
+        d = self$root$d
+        n_k = table(self$root$raw_Y)
+        sum_d_k_2 = .5*do.call(rbind, lapply(1:max(self$root$raw_Y), function(k) colSums(d[which(self$root$raw_Y == k), ])))
+        sum_dT_k = do.call(rbind, lapply(1:max(self$root$raw_Y), function(k) colSums(sweep(d[which(self$root$raw_Y == k), ], 1, self$root$mu1[which(self$root$raw_Y == k)], "*"))))
+        fn = function(theta) {
+          res = 0
+          for (k in 1:length(theta)) {
+            res = res = (theta[k]^2)*(sum_d_k_2[k, 2] + sum_d_k_2[k+1, 1]) - theta[k]*(.5*(n_k[k] - n_k[k+1]) + sum_dT_k[k, 2] + sum_dT_k[k+1, 1])
+            if (k != 1) {
+              res = res - n_k[k]*log(1 - exp(theta[k-1] - theta[k]))
+            }
+          }
+          return(res)
+        }
+        gr = function(theta) {
+          res = numeric(length(theta))
+          for (k in 1:length(theta)) {
+            res[k] = 2*theta[k]*(sum_d_k_2[k, 2] + sum_d_k_2[k+1, 1]) - (.5*(n_k[k] - n_k[k+1]) + sum_dT_k[k, 2] + sum_dT_k[k+1, 1])
+            if (k != 1) {
+              res[k] = res[k] - n_k[k]*(exp(theta[k] - theta[k-1]) - 1)^(-1)
+            }
+            if (k != length(theta)) {
+              res[k] = res[k] + n_k[k+1]*(exp(theta[k+1] - theta[k]) - 1)^(-1)
+            }
+          }
+          return(res)
+        }
+        
+        ui = toeplitz(c(-1, 1, rep(0, length(n_k)-3)))
+        ui[lower.tri(ui, diag = FALSE)] = 0
+        ui = ui[-nrow(ui), , drop = FALSE]
+        
+        init = self$root$cutpoints
+        attributes(init) = NULL
+        theta = constrOptim(theta = init, f = fn, grad = gr, ui = ui, ci = rep(0, nrow(ui)))$par
+        
+        self$cutpoints = theta
+        attr(self$cutpoints, "log_Y") = matrix(NA, nrow = length(self$root$raw_Y), ncol = 2)
+        attr(self$cutpoints, "log_Y")[attr(self$root$raw_Y, 'left_cens'), 2] = self$cutpoints[1]
+        for (k in 2:(length(self$cutpoints))) {
+          attr(self$cutpoints, "log_Y")[which(self$root$raw_Y == k), 1] = self$cutpoints[k-1]
+          attr(self$cutpoints, "log_Y")[which(self$root$raw_Y == k), 2] = self$cutpoints[k]
+        }
+        attr(self$cutpoints, "log_Y")[attr(self$root$raw_Y, 'right_cens'), 1] = tail(self$cutpoints, 1)
       } else {
         self$sigma2 = ((sum(self$root$Y^2) - 2*sum(self$root$Y*self$root$mu1) + sum(self$root$mu2))) / length(self$root$Y)
       }
@@ -147,7 +200,7 @@ VEBBoostNode <- R6Class(
           ELBOs = c(ELBOs, rep(0, i))
         }
         ELBOs[i] = self$root$ELBO
-        if (verbose & ((i %% 100) == 0)) {
+        if (verbose) {
           cat(paste("ELBO: ", ELBOs[i], sep = ""))
           cat("\n")
         }
@@ -160,10 +213,14 @@ VEBBoostNode <- R6Class(
       return(invisible(self$root))
     },
 
-    AddSiblingVEB = function(learner, operator = c("+", "*"), combine_name) { # function to add subtree as sibling to given node, combining with operator
+    AddSiblingVEB = function(learner, operator = c("+", "*"), combine_name) { # function to add subtree as sibling to given LEAF node, combining with operator
       # learner is tree to add to self
       # operator is how to combine them
       # name is what to call the combining node
+      
+      if (!self$isLeaf) {
+        stop("'$AddSiblingVEB' should only be called on a leaf node")
+      }
 
       self_copy = self$clone()
       self_copy$X = NULL
@@ -228,9 +285,9 @@ VEBBoostNode <- R6Class(
     
     unlockLearners = function(changeToConstant = TRUE) { # unlock all (non-constant) learners
       if (changeToConstant) {
-        self$root$Do(function(node) node$isLocked = FALSE, filterFun = function(node) node$isLeaf && !node$isConstant)
+        self$root$Do(function(node) node$isLocked = FALSE, filterFun = function(node) node$isLeaf && !node$isConstant && !(node$name %in% c("mu_mrAsh", "mu_RE")))
       } else {
-        self$root$Do(function(node) node$isLocked = FALSE, filterFun = function(node) node$isLeaf)
+        self$root$Do(function(node) node$isLocked = FALSE, filterFun = function(node) node$isLeaf && !(node$name %in% c("mu_mrAsh", "mu_RE")))
       }
       return(invisible(self$root))
     },
@@ -346,7 +403,7 @@ VEBBoostNode <- R6Class(
         mu1 = private$.mu1
       }
       if (length(mu1) == 1) {
-        mu1 = rep(mu1, length(self$root$raw_Y))
+        mu1 = rep(mu1, nrow(as.matrix((self$root$raw_Y))))
       }
       return(mu1)
     },
@@ -361,7 +418,7 @@ VEBBoostNode <- R6Class(
         mu2 = private$.mu2
       }
       if (length(mu2) == 1) {
-        mu2 = rep(mu2, length(self$root$raw_Y))
+        mu2 = rep(mu2, nrow(as.matrix((self$root$raw_Y))))
       }
       return(mu2)
     },
@@ -415,9 +472,22 @@ VEBBoostNode <- R6Class(
             # xi = self$mu1 + sqrt(1/.05)*sqrt(self$mu2 - self$mu1^2)
             # return(xi - 1 + (private$.Y * self$root$sigma2))
           } else if (self$root$family == "aft.loglogistic") {
-            return(log(private$.Y) + (1 - self$root$exposure)*sqrt(self$root$raw_sigma2)/(2*self$root$d))
+            d = self$root$d
+            s_2d = sqrt(self$root$raw_sigma2)/(2*d)
+            res = attr(private$.Y, 'log_Y')[, 1]
+            res[attr(private$.Y, 'left_cens')] = attr(private$.Y, 'log_Y')[attr(private$.Y, 'left_cens'), 2] - s_2d[attr(private$.Y, 'left_cens'), 2]
+            res[attr(private$.Y, 'right_cens')] = attr(private$.Y, 'log_Y')[attr(private$.Y, 'right_cens'), 1] + s_2d[attr(private$.Y, 'right_cens'), 1]
+            res[attr(private$.Y, 'int_cens')] = rowSums((attr(private$.Y, 'log_Y')*d)[attr(private$.Y, 'int_cens'), ]) / rowSums(d[attr(private$.Y, 'int_cens'), ])
+            return(res)
+          } else if (self$root$family == "ordinal.logistic") {
+            d = self$root$d
+            rsd = rowSums(d, na.rm = T)
+            res = rowSums(d * attr(self$root$cutpoints, "log_Y")) / rsd
+            res[which(is.na(attr(self$root$cutpoints, "log_Y")[, 1]))] = self$root$cutpoints[1] - .5/rsd[which(is.na(attr(self$root$cutpoints, "log_Y")[, 1]))]
+            res[which(is.na(attr(self$root$cutpoints, "log_Y")[, 2]))] = tail(self$root$cutpoints, 1) + .5/rsd[which(is.na(attr(self$root$cutpoints, "log_Y")[, 2]))]
+            return(res)
           } else {
-            stop("family must be one of 'gaussian', 'binomial', 'negative.binomial', 'poisson.log1pexp', 'poisson.exp', or 'aft.loglogistic")
+            stop("family must be one of 'gaussian', 'binomial', 'negative.binomial', 'poisson.log1pexp', 'poisson.exp', 'aft.loglogistic', or 'ordinal.logistic'")
           }
         }
         if (self$parent$operator == "+") {
@@ -476,23 +546,24 @@ VEBBoostNode <- R6Class(
             # sigma2 = log(1 + self$root$raw_Y) + 3
             return(exp(-sigma2))
           } else if (self$root$family == "aft.loglogistic") {
-            return(private$.sigma2 / ((1 + self$root$exposure) * self$d))
-          }
-          else {
-            stop("family must be one of 'gaussian', 'binomial', 'negative.binomial', poisson.log1pexp', 'poisson.exp', or 'aft.loglogistic")
+            return(private$.sigma2 / rowSums(self$root$d, na.rm = TRUE))
+          } else if (self$root$family == "ordinal.logistic") {
+            return(1 / rowSums(self$root$d, na.rm = TRUE))
+          } else {
+            stop("family must be one of 'gaussian', 'binomial', 'negative.binomial', poisson.log1pexp', 'poisson.exp', 'aft.loglogistic', or 'ordinal.logistic'")
           }
         }
         if (self$parent$operator == "+") {
           s2 = self$parent$sigma2
           if (length(s2) == 1) {
-            s2 = rep(s2, length(self$raw_Y))
+            s2 = rep(s2, nrow(as.matrix((self$root$raw_Y))))
           }
           return(s2)
         }
         if (self$parent$operator == "*") {
           s2 = self$parent$sigma2 / self$siblings[[1]]$mu2
           if (length(s2) == 1) {
-            s2 = rep(s2, length(self$raw_Y))
+            s2 = rep(s2, nrow(as.matrix((self$root$raw_Y))))
           }
           return(s2)
         }
@@ -518,8 +589,8 @@ VEBBoostNode <- R6Class(
     
     exposure = function(value) { # exposure variable for poisson or NB, or AFT (for right-censorship info, 1 for censored, 0 for not censored)
       if (missing(value)) {
-        if (!(grepl("poisson", self$root$family, ignore.case = TRUE) | (self$root$family == "negative.binomial") | (self$root$family == "aft.loglogistic"))) {
-          stop("`$exposure` only used for poisson, negative binomial, or AFT families")
+        if (!(grepl("poisson", self$root$family, ignore.case = TRUE) | (self$root$family == "negative.binomial"))) {
+          stop("`$exposure` only used for poisson or negative binomial families")
         }
         if (self$isRoot) {
           e = private$.exposure
@@ -606,11 +677,22 @@ VEBBoostNode <- R6Class(
             sum(lfactorial(self$root$raw_Y)) - self$KL_div
         )
       } else if (self$root$family == "aft.loglogistic") {
-        -.5*sum(log(self$root$raw_sigma2)*self$root$exposure + (1-self$root$exposure)*(log(self$root$raw_Y) - self$root$mu1)/(self$root$raw_sigma2)) - .5*sum((1 + self$root$exposure) * self$d * (self$root$mu2 - 2*self$root$mu1*self$root$Y + self$root$Y^2)/((1 + 3*self$root$exposure) * self$root$raw_sigma2) - self$xi^2) -
-          sum((1 + self$root$exposure) * log(exp(self$xi/2) + exp(-self$xi/2))) - self$KL_div
-      }
-      else {
-        stop("family must be one of 'gaussian', 'binomial', 'negative.binomial', poisson.log1pexp', 'poisson.exp', or 'aft.loglogistic")
+        -.5*log(self$root$raw_sigma2)*sum(attr(self$root$raw_Y, 'not_cens')) + 
+          (.5/sqrt(self$root$raw_sigma2))*(sum(attr(self$root$raw_Y, 'log_Y')[attr(self$root$raw_Y, 'left_cens'), 2] - self$root$mu1[attr(self$root$raw_Y, 'left_cens')]) +
+                                           sum(self$root$mu1[attr(self$root$raw_Y, 'right_cens')] - attr(self$root$raw_Y, 'log_Y')[attr(self$root$raw_Y, 'right_cens'), 1]) -
+                                           sum(attr(self$root$raw_Y, 'log_Y')[attr(self$root$raw_Y, 'int_cens'), ])) - 
+          .5*sum(self$root$d*((cbind(self$root$mu2, self$root$mu2) - 2*cbind(self$root$mu1, self$root$mu1)*attr(self$root$raw_Y, 'log_Y') + attr(self$root$raw_Y, 'log_Y')^2)/self$root$raw_sigma2 - self$xi^2), na.rm = TRUE) +
+          sum(attr(self$root$raw_Y, 'log_Y')[attr(self$root$raw_Y, 'int_cens'), 2])/sqrt(self$root$raw_sigma2) + sum(log(-expm1((attr(self$root$raw_Y, 'log_Y')[attr(self$root$raw_Y, 'int_cens'), 1] - attr(self$root$raw_Y, 'log_Y')[attr(self$root$raw_Y, 'int_cens'), 2])/sqrt(self$root$raw_sigma2)))) - 
+          sum(.5*abs(self$root$xi) + cbind(log1pexp(-abs(self$root$xi[, 1])), log1pexp(-abs(self$root$xi[, 2]))), na.rm = TRUE) - self$KL_div
+      } else if (self$root$family == "ordinal.logistic") {
+        .5*(sum(attr(self$root$cutpoints, 'log_Y')[attr(self$root$raw_Y, 'left_cens'), 2] - self$root$mu1[attr(self$root$raw_Y, 'left_cens')]) +
+                                             sum(self$root$mu1[attr(self$root$raw_Y, 'right_cens')] - attr(self$root$cutpoints, 'log_Y')[attr(self$root$raw_Y, 'right_cens'), 1]) -
+                                             sum(attr(self$root$cutpoints, 'log_Y')[attr(self$root$raw_Y, 'int_cens'), ])) - 
+          .5*sum(self$root$d*((cbind(self$root$mu2, self$root$mu2) - 2*cbind(self$root$mu1, self$root$mu1)*attr(self$root$cutpoints, 'log_Y') + attr(self$root$cutpoints, 'log_Y')^2) - self$xi^2), na.rm = TRUE) +
+          sum(attr(self$root$cutpoints, 'log_Y')[attr(self$root$raw_Y, 'int_cens'), 2]) + sum(log(-expm1((attr(self$root$cutpoints, 'log_Y')[attr(self$root$raw_Y, 'int_cens'), 1] - attr(self$root$cutpoints, 'log_Y')[attr(self$root$raw_Y, 'int_cens'), 2])))) - 
+          sum(.5*abs(self$root$xi) + cbind(log1pexp(-abs(self$root$xi[, 1])), log1pexp(-abs(self$root$xi[, 2]))), na.rm = TRUE) - self$KL_div
+      } else {
+        stop("family must be one of 'gaussian', 'binomial', 'negative.binomial', poisson.log1pexp', 'poisson.exp', 'aft.loglogistic', or 'ordinal.logistic'")
       }
     },
 
@@ -651,7 +733,9 @@ VEBBoostNode <- R6Class(
         stop("`$xi` cannot be modified directly", call. = FALSE)
       }
       if (self$root$family == "aft.loglogistic") {
-        return(sqrt((1 / self$root$raw_sigma2) * (self$root$mu2 - 2*self$root$mu1*log(self$root$raw_Y) + log(self$root$raw_Y)^2)))
+        return(sqrt((1 / self$root$raw_sigma2) * (cbind(self$root$mu2, self$root$mu2) - 2*cbind(self$root$mu1, self$root$mu1)*attr(self$root$raw_Y, 'log_Y') + attr(self$root$raw_Y, 'log_Y')^2)))
+      } else if (self$root$family == "ordinal.logistic") {
+        return(sqrt((cbind(self$root$mu2, self$root$mu2) - 2*cbind(self$root$mu1, self$root$mu1)*attr(self$root$cutpoints, 'log_Y') + attr(self$root$cutpoints, 'log_Y')^2)))
       }
       return(sqrt(self$root$mu2 + self$alpha^2 - 2*self$alpha*self$root$mu1))
     },
