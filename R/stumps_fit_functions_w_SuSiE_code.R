@@ -24,11 +24,11 @@ neg.loglik.logscale = function(lV, tau_no_V, nu, sigma2, prior_weights){
   -log_lik_SER(exp(lV), tau_no_V, nu, sigma2, prior_weights)
 }
 
-optimize_V = function(tau_no_V, nu, sigma2, prior_weights, V = 1) {
+optimize_V = function(tau_no_V, nu, sigma2, prior_weights, lV = min(0, max_lV), max_lV = 0) {
   if (length(sigma2) == 1) {
     sigma2 = rep(sigma2, length(nu))
   }
-  lV = optim(par = log(V), fn = neg.loglik.logscale, tau_no_V = tau_no_V, nu = nu, sigma2 = sigma2, prior_weights = prior_weights, method='Brent', lower = -15, upper = 35)$par
+  lV = optim(par = lV, fn = neg.loglik.logscale, tau_no_V = tau_no_V, nu = nu, sigma2 = sigma2, prior_weights = prior_weights, method='Brent', lower = -15, upper = max_lV)$par
   V = exp(lV)
   return(V)
 }
@@ -37,7 +37,7 @@ optimize_V = function(tau_no_V, nu, sigma2, prior_weights, V = 1) {
 
 # weighted SER function, linear terms + stumps
 # X is a list, first element corresponds to linear, others are stumps for variables
-weighted_SER = function(X, Y, sigma2, init = list(V = NULL)) {
+weighted_SER = function(X, Y, sigma2, init = list(V = NULL), max_lV = 0, lin_prior_prob = 0.5) {
   if (length(sigma2) == 1) {
     sigma2 = rep(sigma2, length(Y))
   }
@@ -52,7 +52,7 @@ weighted_SER = function(X, Y, sigma2, init = list(V = NULL)) {
   }
   p_stumps = p - p_lin
   # prior_weights = c(rep(.5 / p_lin, p_lin), rep(.5 / p_stumps, p_stumps)) * ifelse(p_lin * p_stumps == 0, 2, 1)
-  prior_weights = c(rep(.5 / p_lin, p_lin), rep(.5 / p_stumps, p_stumps)) / (.5*(p_lin != 0) + .5*(p_stumps != 0))
+  prior_weights = c(rep(lin_prior_prob / p_lin, p_lin), rep((1 - lin_prior_prob) / p_stumps, p_stumps)) / (lin_prior_prob*(p_lin != 0) + (1 - lin_prior_prob)*(p_stumps != 0))
   # prior_weights = rep(1 / p, p)
 
   Y_avg = sum(Y * w)
@@ -63,8 +63,8 @@ weighted_SER = function(X, Y, sigma2, init = list(V = NULL)) {
   nu = compute_Xty(X, Y_cent / sigma2) - (X_avg * sum(Y_cent / sigma2))
 
   # optim method, seems to be slower than EM method
-  V = ifelse(is.null(init$V), 1, init$V)
-  V = optimize_V(tau_no_V, nu, sigma2, prior_weights, V)
+  lV = log(ifelse(is.null(init$V), 1, init$V))
+  V = optimize_V(tau_no_V, nu, sigma2, prior_weights, lV, max_lV)
 
   tau = tau_no_V + (1 / V)
 
@@ -127,7 +127,7 @@ weighted_SER = function(X, Y, sigma2, init = list(V = NULL)) {
 }
 
 fitFnSusieStumps = function(X, Y, sigma2, init) {
-  return(weighted_SER(X, Y, sigma2, init))
+  return(weighted_SER(X, Y, sigma2, init, 0, 0.5))
 }
 
 predFnSusieStumps = function(X_new, currentFit, moment = c(1, 2)) {

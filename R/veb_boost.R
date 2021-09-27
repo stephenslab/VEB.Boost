@@ -393,9 +393,18 @@ veb_boost = function(X, Y, X_test = NULL, fitFunctions, predFunctions, constChec
 #' cut points should be evenly spaced in the range of the variable (`use_quants = FALSE`).
 #' 
 #' @param scale_X is a string for if/how the columns of X should be scaled.
-#' 'max' scales by the maximum absolute value (so variables are on the [-1, +1] scale).
 #' 'sd' scales by the standard deviations of the variables.
+#' 'max' scales by the maximum absolute value (so variables are on the [-1, +1] scale).
 #' 'NA' performs no scaling.
+#' 
+#' @param max_log_prior_var is a scalar for the maximum that the estimated log-prior variance for each weak learner can be.
+#' The idea is that setting this to be small limits the "size" of each weak learner, similar-ish to the learning rate in boosting.
+#' The maximum allowed value is 35, which essentially allows the unrestricted MLE to be estimated.
+#' The minimum allowed value is -5.
+#' 
+#' @param lin_prior_prob is a number between 0 and 1 that gives the prior probability that the effect variable is a linear term.
+#' This means that (1 - lin_prior_prob) is the probability that the effect variable is a stump term.
+#' Within linear terms and stump terms, all variables have the same prior variance.
 #' 
 #' @param ... Other arguments to be passed to \code{\link{veb_boost}}
 #' 
@@ -417,7 +426,8 @@ veb_boost = function(X, Y, X_test = NULL, fitFunctions, predFunctions, constChec
 
 veb_boost_stumps = function(X, Y, X_test = NULL, include_linear = NULL, include_stumps = NULL, 
                             num_cuts = ceiling(min(length(Y) / 5, max(100, sqrt(length(Y))))), 
-                            use_quants = TRUE, scale_X = c("max", "sd", "NA"), ...) {
+                            use_quants = TRUE, scale_X = c("sd", "max", "NA"), 
+                            max_log_prior_var = 0, lin_prior_prob = 0.5, ...) {
   ### Check Inputs ###
   # Check X
   if (!is_valid_matrix(X)) {
@@ -458,6 +468,22 @@ veb_boost_stumps = function(X, Y, X_test = NULL, include_linear = NULL, include_
     stop("'use_quants' must be either TRUE or FALSE")
   }
   scale_X = match.arg(scale_X)
+  # Check max_log_prior_var
+  if (!is.numeric(max_log_prior_var) || (length(max_log_prior_var) != 1)) {
+    stop("'max_log_prior_var' must be a single number")
+  }
+  if ((max_log_prior_var < -5) | (max_log_prior_var > 35)) {
+    warning("Restricting 'max_log_prior_var' to be in the range [-5, 35]")
+    max_log_prior_var = min(35, max(-5, max_log_prior_var))
+  }
+  # Check lin_prior_prob
+  if (!is.numeric(lin_prior_prob) || (length(lin_prior_prob) != 1)) {
+    stop("'lin_prior_prob' must be a single number")
+  }
+  if ((lin_prior_prob < 0) | (lin_prior_prob > 1)) {
+    warning("Restricting 'lin_prior_prob' to be in the range [0, 1]")
+    lin_prior_prob = min(1, max(0, lin_prior_prob))
+  }
   
   # scale X if needed
   if (scale_X %in% c("max", "sd")) {
@@ -533,10 +559,14 @@ veb_boost_stumps = function(X, Y, X_test = NULL, include_linear = NULL, include_
     }
     X_test_stumps = make_stumps_matrix(X_test, include_linear, include_stumps, cuts)
   }
+  
+  fitFnSusieStumps_maxlV = function(X, Y, sigma2, init) {
+    return(weighted_SER(X, Y, sigma2, init, max_log_prior_var, lin_prior_prob))
+  }
 
   # Run
   veb.fit = veb_boost(X = X_stumps, Y = Y, X_test = X_test_stumps, 
-                      fitFunctions = fitFnSusieStumps, predFunctions = predFnSusieStumps, constCheckFunctions = constCheckFnSusieStumps,
+                      fitFunctions = fitFnSusieStumps_maxlV, predFunctions = predFnSusieStumps, constCheckFunctions = constCheckFnSusieStumps,
                       ...)
   
   return(veb.fit)
