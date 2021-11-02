@@ -11,29 +11,8 @@ Rcpp::Rostream<true>&  Rcpp::Rcout = Rcpp::Rcpp_cout_get();
 Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
-// start_profiler
-SEXP start_profiler(SEXP str);
-RcppExport SEXP _VEB_Boost_start_profiler(SEXP strSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< SEXP >::type str(strSEXP);
-    rcpp_result_gen = Rcpp::wrap(start_profiler(str));
-    return rcpp_result_gen;
-END_RCPP
-}
-// stop_profiler
-SEXP stop_profiler();
-RcppExport SEXP _VEB_Boost_stop_profiler() {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    rcpp_result_gen = Rcpp::wrap(stop_profiler());
-    return rcpp_result_gen;
-END_RCPP
-}
 // make_stumps_matrix_cpp
-XPtr<StumpsMatrix> make_stumps_matrix_cpp(arma::mat X, arma::uvec include_linear, arma::uvec include_stumps, std::vector<arma::vec> cuts, unsigned int ncores);
+XPtr<stumpsmatrix::StumpsMatrix> make_stumps_matrix_cpp(arma::mat X, arma::uvec include_linear, arma::uvec include_stumps, std::vector<arma::vec> cuts, unsigned int ncores);
 RcppExport SEXP _VEB_Boost_make_stumps_matrix_cpp(SEXP XSEXP, SEXP include_linearSEXP, SEXP include_stumpsSEXP, SEXP cutsSEXP, SEXP ncoresSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
@@ -48,7 +27,7 @@ BEGIN_RCPP
 END_RCPP
 }
 // make_stumps_matrix_sp_cpp
-XPtr<StumpsMatrix> make_stumps_matrix_sp_cpp(arma::sp_mat X, arma::uvec include_linear, arma::uvec include_stumps, std::vector<arma::vec> cuts, unsigned int ncores);
+XPtr<stumpsmatrix::StumpsMatrix> make_stumps_matrix_sp_cpp(arma::sp_mat X, arma::uvec include_linear, arma::uvec include_stumps, std::vector<arma::vec> cuts, unsigned int ncores);
 RcppExport SEXP _VEB_Boost_make_stumps_matrix_sp_cpp(SEXP XSEXP, SEXP include_linearSEXP, SEXP include_stumpsSEXP, SEXP cutsSEXP, SEXP ncoresSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
@@ -63,14 +42,14 @@ BEGIN_RCPP
 END_RCPP
 }
 // weighted_SER_cpp
-List weighted_SER_cpp(XPtr<StumpsMatrix> xp, arma::vec Y, arma::vec sigma2, Nullable<List> init, double max_lV, double lin_prior_prob);
+List weighted_SER_cpp(XPtr<stumpsmatrix::StumpsMatrix> xp, arma::vec& Y, arma::vec& sigma2, Nullable<List> init, double max_lV, double lin_prior_prob);
 RcppExport SEXP _VEB_Boost_weighted_SER_cpp(SEXP xpSEXP, SEXP YSEXP, SEXP sigma2SEXP, SEXP initSEXP, SEXP max_lVSEXP, SEXP lin_prior_probSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< XPtr<StumpsMatrix> >::type xp(xpSEXP);
-    Rcpp::traits::input_parameter< arma::vec >::type Y(YSEXP);
-    Rcpp::traits::input_parameter< arma::vec >::type sigma2(sigma2SEXP);
+    Rcpp::traits::input_parameter< XPtr<stumpsmatrix::StumpsMatrix> >::type xp(xpSEXP);
+    Rcpp::traits::input_parameter< arma::vec& >::type Y(YSEXP);
+    Rcpp::traits::input_parameter< arma::vec& >::type sigma2(sigma2SEXP);
     Rcpp::traits::input_parameter< Nullable<List> >::type init(initSEXP);
     Rcpp::traits::input_parameter< double >::type max_lV(max_lVSEXP);
     Rcpp::traits::input_parameter< double >::type lin_prior_prob(lin_prior_probSEXP);
@@ -79,12 +58,12 @@ BEGIN_RCPP
 END_RCPP
 }
 // predFnSusieStumps_cpp
-arma::vec predFnSusieStumps_cpp(XPtr<StumpsMatrix> xp_new, List currentFit, int moment);
+arma::vec predFnSusieStumps_cpp(XPtr<stumpsmatrix::StumpsMatrix> xp_new, List currentFit, int moment);
 RcppExport SEXP _VEB_Boost_predFnSusieStumps_cpp(SEXP xp_newSEXP, SEXP currentFitSEXP, SEXP momentSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< XPtr<StumpsMatrix> >::type xp_new(xp_newSEXP);
+    Rcpp::traits::input_parameter< XPtr<stumpsmatrix::StumpsMatrix> >::type xp_new(xp_newSEXP);
     Rcpp::traits::input_parameter< List >::type currentFit(currentFitSEXP);
     Rcpp::traits::input_parameter< int >::type moment(momentSEXP);
     rcpp_result_gen = Rcpp::wrap(predFnSusieStumps_cpp(xp_new, currentFit, moment));
@@ -92,16 +71,11 @@ BEGIN_RCPP
 END_RCPP
 }
 
-RcppExport SEXP _rcpp_module_boot_stumpsMatrix_module();
-
 static const R_CallMethodDef CallEntries[] = {
-    {"_VEB_Boost_start_profiler", (DL_FUNC) &_VEB_Boost_start_profiler, 1},
-    {"_VEB_Boost_stop_profiler", (DL_FUNC) &_VEB_Boost_stop_profiler, 0},
     {"_VEB_Boost_make_stumps_matrix_cpp", (DL_FUNC) &_VEB_Boost_make_stumps_matrix_cpp, 5},
     {"_VEB_Boost_make_stumps_matrix_sp_cpp", (DL_FUNC) &_VEB_Boost_make_stumps_matrix_sp_cpp, 5},
     {"_VEB_Boost_weighted_SER_cpp", (DL_FUNC) &_VEB_Boost_weighted_SER_cpp, 6},
     {"_VEB_Boost_predFnSusieStumps_cpp", (DL_FUNC) &_VEB_Boost_predFnSusieStumps_cpp, 3},
-    {"_rcpp_module_boot_stumpsMatrix_module", (DL_FUNC) &_rcpp_module_boot_stumpsMatrix_module, 0},
     {NULL, NULL, 0}
 };
 
