@@ -1,5 +1,4 @@
-#ifndef INCLUDE_MatrixClass_h
-#define INCLUDE_MatrixClass_h
+#pragma once
 
 #include <RcppArmadillo.h>
 #include <memory>
@@ -100,7 +99,7 @@ namespace stumpsmatrix {
   
   // function to take in a sorted vec cuts and tells you which bucket you'd fall it (right-closed)
   // faster, if we already have the sort order of t, which we need anyway
-  std::array<arma::uvec, 2> get_buckets_and_counts(const arma::vec& t, const arma::uvec& order_t, const arma::vec& cuts) {
+  inline std::array<arma::uvec, 2> get_buckets_and_counts(const arma::vec& t, const arma::uvec& order_t, const arma::vec& cuts) {
     arma::uvec counts(cuts.size()+1, arma::fill::zeros);
     arma::uvec t_to_bin(t.size());
     unsigned int j = 0;
@@ -124,7 +123,7 @@ namespace stumpsmatrix {
   }
   
   // faster version of reverse(cumsum(reverse(x)))
-  arma::vec rev_cumsum_rev(const arma::vec& x) {
+  inline arma::vec rev_cumsum_rev(const arma::vec& x) {
     arma::vec res(x.size());
     res[res.size()-1] = x[x.size()-1];
     for (size_t i=res.size()-1; i>0; i--) {
@@ -428,5 +427,3 @@ namespace stumpsmatrix {
 //   .field( "col_scale_factors", &StumpsMatrix::col_scale_factors )
 // }
 
-
-#endif
