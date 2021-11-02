@@ -7,25 +7,25 @@ VEBBoostNode <- R6Class(
   "VEBBoostNode",
   public = list(
     operator = NULL, # either "+" or "*" for internal nodes, NULL for terminal nodes
-
+    
     currentFit = NULL, # current fit for fitting function
-
+    
     fitFunction = NULL, # function that takes in predictors X, response Y, variances sigma2, and returns the fit
     # the fit must have fields mu1 (first moment), mu2 (second moment), KL_div (KL divergence from q to g),
-
+    
     predFunction = NULL, # function to predict based on current fit
-
+    
     constCheckFunction = NULL, # function to check if fit is constant
-
+    
     family = "gaussian",
     
     cutpoints = NULL, # cutpoints for ordinal regression
-
+    
     AddChildVEB = function(name, check = c("check", "no-warn", "no-check"), ...) { # add VEB node as child
       child = VEBBoostNode$new(as.character(name), check, ...)
       return(invisible(self$AddChildNode(child)))
     },
-
+    
     updateMoments = function() { # after updating the fit, pass changes to moments up to parent node
       if (!self$isLeaf) { # if not at a leaf, update moments
         children_mu1 = sapply(self$children, function(x) x$mu1)
@@ -38,10 +38,10 @@ VEBBoostNode <- R6Class(
           private$.mu2 = children_mu2[, 1] * children_mu2[, 2]
         }
       }
-
+      
       return(invisible(self))
     },
-
+    
     updateMomentsAll = function() { # after updating the fit, pass changes to moments up to internal nodes
       if (!self$isLeaf) { # if not at a leaf, update moments
         children_mu1 = sapply(self$children, function(x) x$mu1)
@@ -78,8 +78,8 @@ VEBBoostNode <- R6Class(
       } else {
         return(self$updateCurrentInputs(self$parent$updateCurrentInputs(currentInputs)))
       }
-    }, 
-
+    },
+    
     updateFit = function(currentInputs = NULL) { # function to update currentFit
       if (self$isLeaf) {
         if (is.null(currentInputs)) { # when starting at mu_0
@@ -87,13 +87,13 @@ VEBBoostNode <- R6Class(
         } else { # else, update inputs
           currentInputs = self$updateCurrentInputs(currentInputs)
         }
-        # if (!self$isLocked && any(is.infinite(currentInputs$sigma2))) {
-        #   self$isLocked = TRUE
-        #   self$fitFunction = private$.fitFnConstComp
-        #   self$predFunction = private$.predFnConstComp
-        #   self$constCheckFunction = private$.constCheckFnConstComp
-        #   self$updateFit()
-        # }
+        if (!self$isLocked && any(is.infinite(currentInputs$sigma2))) { # if somehow variances become infinite, just a safeguard....
+          self$isLocked = TRUE
+          self$fitFunction = private$.fitFnConstComp
+          self$predFunction = private$.predFnConstComp
+          self$constCheckFunction = private$.constCheckFnConstComp
+        }
+       
         self$currentFit = self$fitFunction(self$X, currentInputs$Y, currentInputs$sigma2, self$currentFit)
       }
       self$updateMoments()
@@ -110,17 +110,17 @@ VEBBoostNode <- R6Class(
       }
       return(currentInputs)
     },
-
+    
     updateSigma2 = function() { # function to update sigma2
       if (self$root$family == "aft.loglogistic") {
         a1 = -sum(attr(self$root$raw_Y, 'not_cens'))
-        a2 = .5*(sum(attr(self$root$raw_Y, 'log_Y')[attr(self$root$raw_Y, 'left_cens'), 2] - self$root$mu1[attr(self$root$raw_Y, 'left_cens')]) + 
-                  sum(self$root$mu1[attr(self$root$raw_Y, 'right_cens')] - attr(self$root$raw_Y, 'log_Y')[attr(self$root$raw_Y, 'right_cens'), 1]) - 
-                  sum(attr(self$root$raw_Y, 'log_Y')[attr(self$root$raw_Y, 'int_cens'), ]))
+        a2 = .5*(sum(attr(self$root$raw_Y, 'log_Y')[attr(self$root$raw_Y, 'left_cens'), 2] - self$root$mu1[attr(self$root$raw_Y, 'left_cens')]) +
+                   sum(self$root$mu1[attr(self$root$raw_Y, 'right_cens')] - attr(self$root$raw_Y, 'log_Y')[attr(self$root$raw_Y, 'right_cens'), 1]) -
+                   sum(attr(self$root$raw_Y, 'log_Y')[attr(self$root$raw_Y, 'int_cens'), ]))
         a3 = -.5*sum(self$root$d*(cbind(self$root$mu2, self$root$mu2) - 2*cbind(self$root$mu1, self$root$mu1)*attr(self$root$raw_Y, 'log_Y') + attr(self$root$raw_Y, 'log_Y')^2), na.rm = TRUE)
         nll.logscale = function(lS) {
-          -(a1*lS + a2*exp(-lS) + a3*exp(-2*lS) + 
-              sum(attr(self$root$raw_Y, 'log_Y')[attr(self$root$raw_Y, 'int_cens'), 2])/exp(lS) + 
+          -(a1*lS + a2*exp(-lS) + a3*exp(-2*lS) +
+              sum(attr(self$root$raw_Y, 'log_Y')[attr(self$root$raw_Y, 'int_cens'), 2])/exp(lS) +
               sum(log(-expm1((attr(self$root$raw_Y, 'log_Y')[attr(self$root$raw_Y, 'int_cens'), 1] - attr(self$root$raw_Y, 'log_Y')[attr(self$root$raw_Y, 'int_cens'), 2])/exp(lS)))))
         }
         lS = optim(par = .5*log(self$raw_sigma2), fn = nll.logscale, method = 'Brent', lower = -15, upper = 35)$par
@@ -175,8 +175,8 @@ VEBBoostNode <- R6Class(
       }
       return(invisible(self))
     },
-
-    convergeFit = function(tol = 1e-3, update_sigma2 = FALSE, update_ELBO_progress = TRUE, verbose = TRUE, maxit = Inf) {
+    
+    convergeFit = function(tol = 1e-1, update_sigma2 = FALSE, update_ELBO_progress = TRUE, verbose = TRUE, maxit = Inf) {
       ELBOs = numeric(1000)
       ELBOs[1] = -Inf
       ELBOs[2] = self$root$ELBO
@@ -184,15 +184,16 @@ VEBBoostNode <- R6Class(
       nodes = Traverse(self$root, 'post-order')
       while (abs(ELBOs[i] - ELBOs[i-1]) > tol & (i-1 <= maxit)) {
         currentInputs = NULL
-        # self$root$Do(function(x) currentInputs = x$updateFit(currentInputs), traversal = 'post-order')
         for (n in nodes) {
           currentInputs = n$updateFit(currentInputs)
         }
+        
         if (update_sigma2) {
           self$root$updateSigma2()
         }
         i = i+1
         if (all(self$root$sigma2 == 0)) { # if estimate sigma2 is 0, stop
+          browser()
           ELBOs[i] = Inf
           break
         }
@@ -206,13 +207,13 @@ VEBBoostNode <- R6Class(
         }
       }
       ELBOs = ELBOs[2:i]
-
+      
       if (update_ELBO_progress) {
         self$ELBO_progress = ELBOs
       }
       return(invisible(self$root))
     },
-
+    
     AddSiblingVEB = function(learner, operator = c("+", "*"), combine_name) { # function to add subtree as sibling to given LEAF node, combining with operator
       # learner is tree to add to self
       # operator is how to combine them
@@ -221,17 +222,17 @@ VEBBoostNode <- R6Class(
       if (!self$isLeaf) {
         stop("'$AddSiblingVEB' should only be called on a leaf node")
       }
-
+      
       self_copy = self$clone()
       self_copy$X = NULL
-
+      
       self$fitFunction = NULL
       self$currentFit = NULL
       self$predFunction = NULL
       self$constCheckFunction = NULL
       self$operator = operator
       self$name = combine_name
-
+      
       self$AddChildNode(self_copy)
       self$AddChildNode(learner)
       
@@ -242,11 +243,11 @@ VEBBoostNode <- R6Class(
         # otherwise, if adding a real sibling, have to update all ancestors
         self_copy$parent$updateMomentsAll()
       }
-
+      
       return(invisible(self$root)) # return root, so we can assign entire tree to new value (in case we're splitting at root)
-
+      
     },
-
+    
     lockSelf = function(changeToConstant = TRUE) { # function node calls on itself to check if it's locked, and lock if necessary
       # if changeToConstant, change fitting function to constant
       if (self$isConstant) {
@@ -261,10 +262,10 @@ VEBBoostNode <- R6Class(
       }
       return(invisible(self))
     },
-
+    
     lockLearners = function(growMode = c("+", "*", "+*"), changeToConstant = TRUE) { # lock learners that should be locked
       self$root$Do(function(node) node$lockSelf(changeToConstant), filterFun = function(node) node$isLeaf & !node$isLocked, traversal ='post-order')
-
+      
       base_learners = Traverse(self$root, filterFun = function(x) x$isLeaf & !x$isLocked)
       for (learner in base_learners) {
         if (learner$isRoot || learner$parent$isRoot) { # if root or parent is root, not locked, do this to avoid errors in next if statement
@@ -275,11 +276,11 @@ VEBBoostNode <- R6Class(
           learner$isLocked = TRUE
         }
         # if "+*", and already if a "+*" part where both "+" anr "*" parts or locked, then lock learner
-        if ((growMode == "+*") && (learner$parent$operator == "+") && (learner$parent$parent$operator == "*") && learner$parent$siblings[[1]]$isLocked) {
+        if ((growMode == "+*") && (learner$parent$operator == "*") && learner$siblings[[1]]$isLocked && (learner$parent$parent$operator == "+") && learner$parent$siblings[[1]]$isLocked) {
           learner$isLocked = TRUE
         }
       }
-
+      
       return(invisible(self$root))
     },
     
@@ -291,10 +292,10 @@ VEBBoostNode <- R6Class(
       }
       return(invisible(self$root))
     },
-
-    addLearnerAll = function(growMode = c("+", "*", "+*"), changeToConstant = TRUE) { # to each leaf, add a "+" and "*"
+    
+    addLearnerAll = function(growMode = c("+", "*", "+*"), changeToConstant = TRUE, unlockLearners = FALSE) { # to each leaf, add a "+" and "*"
       self$root$lockLearners(growMode, changeToConstant) # lock learners
-
+      
       base_learners = Traverse(self$root, filterFun = function(x) x$isLeaf & !x$isLocked)
       for (learner in base_learners) {
         fitFn = learner$fitFunction
@@ -304,38 +305,40 @@ VEBBoostNode <- R6Class(
         if (growMode %in% c("+", "*")) {
           learner_name = paste("mu_", learner$root$leafCount, sep = '')
           combine_name = paste("combine_", learner$root$leafCount, sep = '')
-
+          
           add_fit = list(mu1 = rep(1 * (growMode == "*"), length(learner$Y)), mu2 = rep(1 * (growMode == "*"), length(learner$Y)), KL_div = 0, V = 1)
           add_node = VEBBoostNode$new(learner_name, fitFunction = fitFn, predFunction = predFn, constCheckFunction = constCheckFn, currentFit = add_fit)
           learner$AddSiblingVEB(add_node, growMode, combine_name)
         } else {
           learner_name = paste("mu_", learner$root$leafCount, sep = '')
           combine_name = paste("combine_", learner$root$leafCount, sep = '')
-
+          
           add_fit = list(mu1 = rep(0, length(learner$Y)), mu2 = rep(0, length(learner$Y)), KL_div = 0, V = 1)
           add_node = VEBBoostNode$new(learner_name, fitFunction = fitFn, predFunction = predFn, constCheckFunction = constCheckFn, currentFit = add_fit)
           learner$AddSiblingVEB(add_node, "+", combine_name)
-
+          
           learner_name = paste("mu_", learner$root$leafCount, sep = '')
           combine_name = paste("combine_", learner$root$leafCount, sep = '')
-
+          
           mult_fit = list(mu1 = rep(1, length(learner$Y)), mu2 = rep(1, length(learner$Y)), KL_div = 0, V = 1)
           mult_node = VEBBoostNode$new(learner_name, fitFunction = fitFn, predFunction = predFn, constCheckFunction = constCheckFn, currentFit = mult_fit)
           learner$children[[1]]$AddSiblingVEB(mult_node, "*", combine_name)
         }
       }
       
-      self$root$unlockLearners(changeToConstant)
-
+      if (unlockLearners) {
+        self$root$unlockLearners(changeToConstant)
+      }
+      
       return(invisible(self$root))
     },
-
-    convergeFitAll = function(tol = 1e-3, update_sigma2 = FALSE, update_ELBO_progress = TRUE, growMode = "+*", changeToConstant = TRUE, verbose = FALSE) {
-      self$addLearnerAll(growMode, changeToConstant)
-      self$convergeFit(tol, update_sigma2, update_ELBO_progress, verbose)
+    
+    convergeFitAll = function(tol = 1e-1, update_sigma2 = FALSE, update_ELBO_progress = TRUE, growMode = "+*", changeToConstant = TRUE, verbose = FALSE, maxit = Inf, unlockLearners = FALSE) {
+      self$addLearnerAll(growMode, changeToConstant, unlockLearners)
+      self$convergeFit(tol, update_sigma2, update_ELBO_progress, verbose, maxit = maxit)
       return(invisible(self$root))
     },
-
+    
     predict = function(X_new, moment = c(1, 2)) { # function to get prediction on new data
       self$root$Do(function(node) {
         if (1 %in% moment) {
@@ -347,12 +350,13 @@ VEBBoostNode <- R6Class(
       }, filterFun = function(x) x$isLeaf)
       return(invisible(self$root))
     }
-
+    
   ),
   private = list(
     .X = NULL, # predictors for node (if NA, use value of parent)
     .Y = NA, # response, only not NA at root
     .sigma2 = NA, # variance, only not NA at root
+    .sigma2_prev = NA, # previous variance, only not NA at root
     .mu1 = NA, # current first moment
     .mu2 = NA, # current second moment
     .ELBO_progress = list(-Inf), # list of ELBOs for each iteration of growing and fitting the tree
@@ -363,9 +367,9 @@ VEBBoostNode <- R6Class(
     .exposure = 1, # used in poisson.log1pexp
     .ensemble = NULL # used in multi-class learner, either reference to self, or multi-class learner object
   ),
-
+  
   active = list(
-
+    
     ensemble = function(value) {
       if (missing(value)) {
         if (self$isRoot) {
@@ -378,21 +382,21 @@ VEBBoostNode <- R6Class(
           return(invisible(self$root$ensemble))
         }
       }
-
+      
       if (!self$isRoot) {
         stop("`$ensemble' cannot be modified except at the root", call. = FALSE)
       } else {
         private$.ensemble = value
       }
     },
-
+    
     isEnsemble = function(value) { # TRUE if is ensemble (root AND not part of higher ensemble), else FALSE
       if (!missing(value)) {
         stop("`$isEnsemble' cannot be modified directly", call. = FALSE)
       }
       return((self$isRoot) && (is.null(private$.ensemble)))
     },
-
+    
     mu1 = function(value) {
       if (!missing(value)) {
         stop("`$mu1` cannot be modified directly", call. = FALSE)
@@ -407,7 +411,7 @@ VEBBoostNode <- R6Class(
       }
       return(mu1)
     },
-
+    
     mu2 = function(value) {
       if (!missing(value)) {
         stop("`$mu2` cannot be modified directly", call. = FALSE)
@@ -422,18 +426,18 @@ VEBBoostNode <- R6Class(
       }
       return(mu2)
     },
-
+    
     KL_div = function(value) { # KL divergence from q to g of learner defined by sub-tree with this node as the root
       if (!missing(value)) {
         stop("`$KL_div` cannot be modified directly", call. = FALSE)
       }
-
+      
       if (self$isLeaf) {
         return(self$currentFit$KL_div)
       }
       return(sum(sapply(self$children, function(x) x$KL_div)))
     },
-
+    
     X = function(value) { # predictor for node
       if (missing(value)) {
         if (self$isRoot) {
@@ -451,7 +455,7 @@ VEBBoostNode <- R6Class(
       }
       private$.X = value
     },
-
+    
     Y = function(value) { # response for sub-tree
       if (missing(value)) {
         if (self$isRoot) {
@@ -504,7 +508,7 @@ VEBBoostNode <- R6Class(
         }
       }
     },
-
+    
     raw_Y = function(value) { # raw value of private$.Y, only needed for logistic ELBO
       if (!missing(value)) {
         stop("`$raw_Y` cannot be modified directly", call. = FALSE)
@@ -515,7 +519,7 @@ VEBBoostNode <- R6Class(
         return(self$parent$raw_Y)
       }
     },
-
+    
     sigma2 = function(value) { # variance for sub-tree
       if (missing(value)) {
         if (self$isRoot) {
@@ -608,8 +612,8 @@ VEBBoostNode <- R6Class(
           stop("`$exposure` cannot be modified directly except at the root node", call. = FALSE)
         }
       }
-    }, 
-
+    },
+    
     ELBO_progress = function(value) { # ELBO progress of tree
       if (missing(value)) {
         if (self$isRoot) {
@@ -625,7 +629,7 @@ VEBBoostNode <- R6Class(
         }
       }
     },
-
+    
     ELBO = function(value) { # ELBO for entire tree
       if (!missing(value)) {
         stop("`$ELBO` cannot be modified directly", call. = FALSE)
@@ -654,7 +658,7 @@ VEBBoostNode <- R6Class(
         xi = self$root$xi
         return(
           sum((self$root$raw_Y + self$root$exposure) * log(ilogit(xi))) + .5*sum((self$root$raw_Y - self$root$exposure) * self$root$mu1 - (self$root$raw_Y + self$root$exposure) * xi) -
-            .5*sum(d * (self$root$raw_Y + self$root$exposure) * (self$root$mu2 - xi^2)) - 
+            .5*sum(d * (self$root$raw_Y + self$root$exposure) * (self$root$mu2 - xi^2)) -
             sum(lgamma(self$root$raw_Y + self$root$exposure) - lgamma(self$root$exposure) - lfactorial(self$root$raw_Y)) - self$KL_div
         )
       } else if (self$root$family == "poisson.log1pexp") {
@@ -677,25 +681,25 @@ VEBBoostNode <- R6Class(
             sum(lfactorial(self$root$raw_Y)) - self$KL_div
         )
       } else if (self$root$family == "aft.loglogistic") {
-        -.5*log(self$root$raw_sigma2)*sum(attr(self$root$raw_Y, 'not_cens')) + 
+        -.5*log(self$root$raw_sigma2)*sum(attr(self$root$raw_Y, 'not_cens')) +
           (.5/sqrt(self$root$raw_sigma2))*(sum(attr(self$root$raw_Y, 'log_Y')[attr(self$root$raw_Y, 'left_cens'), 2] - self$root$mu1[attr(self$root$raw_Y, 'left_cens')]) +
-                                           sum(self$root$mu1[attr(self$root$raw_Y, 'right_cens')] - attr(self$root$raw_Y, 'log_Y')[attr(self$root$raw_Y, 'right_cens'), 1]) -
-                                           sum(attr(self$root$raw_Y, 'log_Y')[attr(self$root$raw_Y, 'int_cens'), ])) - 
+                                             sum(self$root$mu1[attr(self$root$raw_Y, 'right_cens')] - attr(self$root$raw_Y, 'log_Y')[attr(self$root$raw_Y, 'right_cens'), 1]) -
+                                             sum(attr(self$root$raw_Y, 'log_Y')[attr(self$root$raw_Y, 'int_cens'), ])) -
           .5*sum(self$root$d*((cbind(self$root$mu2, self$root$mu2) - 2*cbind(self$root$mu1, self$root$mu1)*attr(self$root$raw_Y, 'log_Y') + attr(self$root$raw_Y, 'log_Y')^2)/self$root$raw_sigma2 - self$xi^2), na.rm = TRUE) +
-          sum(attr(self$root$raw_Y, 'log_Y')[attr(self$root$raw_Y, 'int_cens'), 2])/sqrt(self$root$raw_sigma2) + sum(log(-expm1((attr(self$root$raw_Y, 'log_Y')[attr(self$root$raw_Y, 'int_cens'), 1] - attr(self$root$raw_Y, 'log_Y')[attr(self$root$raw_Y, 'int_cens'), 2])/sqrt(self$root$raw_sigma2)))) - 
+          sum(attr(self$root$raw_Y, 'log_Y')[attr(self$root$raw_Y, 'int_cens'), 2])/sqrt(self$root$raw_sigma2) + sum(log(-expm1((attr(self$root$raw_Y, 'log_Y')[attr(self$root$raw_Y, 'int_cens'), 1] - attr(self$root$raw_Y, 'log_Y')[attr(self$root$raw_Y, 'int_cens'), 2])/sqrt(self$root$raw_sigma2)))) -
           sum(.5*abs(self$root$xi) + cbind(log1pexp(-abs(self$root$xi[, 1])), log1pexp(-abs(self$root$xi[, 2]))), na.rm = TRUE) - self$KL_div
       } else if (self$root$family == "ordinal.logistic") {
         .5*(sum(attr(self$root$cutpoints, 'log_Y')[attr(self$root$raw_Y, 'left_cens'), 2] - self$root$mu1[attr(self$root$raw_Y, 'left_cens')]) +
-                                             sum(self$root$mu1[attr(self$root$raw_Y, 'right_cens')] - attr(self$root$cutpoints, 'log_Y')[attr(self$root$raw_Y, 'right_cens'), 1]) -
-                                             sum(attr(self$root$cutpoints, 'log_Y')[attr(self$root$raw_Y, 'int_cens'), ])) - 
+              sum(self$root$mu1[attr(self$root$raw_Y, 'right_cens')] - attr(self$root$cutpoints, 'log_Y')[attr(self$root$raw_Y, 'right_cens'), 1]) -
+              sum(attr(self$root$cutpoints, 'log_Y')[attr(self$root$raw_Y, 'int_cens'), ])) -
           .5*sum(self$root$d*((cbind(self$root$mu2, self$root$mu2) - 2*cbind(self$root$mu1, self$root$mu1)*attr(self$root$cutpoints, 'log_Y') + attr(self$root$cutpoints, 'log_Y')^2) - self$xi^2), na.rm = TRUE) +
-          sum(attr(self$root$cutpoints, 'log_Y')[attr(self$root$raw_Y, 'int_cens'), 2]) + sum(log(-expm1((attr(self$root$cutpoints, 'log_Y')[attr(self$root$raw_Y, 'int_cens'), 1] - attr(self$root$cutpoints, 'log_Y')[attr(self$root$raw_Y, 'int_cens'), 2])))) - 
+          sum(attr(self$root$cutpoints, 'log_Y')[attr(self$root$raw_Y, 'int_cens'), 2]) + sum(log(-expm1((attr(self$root$cutpoints, 'log_Y')[attr(self$root$raw_Y, 'int_cens'), 1] - attr(self$root$cutpoints, 'log_Y')[attr(self$root$raw_Y, 'int_cens'), 2])))) -
           sum(.5*abs(self$root$xi) + cbind(log1pexp(-abs(self$root$xi[, 1])), log1pexp(-abs(self$root$xi[, 2]))), na.rm = TRUE) - self$KL_div
       } else {
         stop("family must be one of 'gaussian', 'binomial', 'negative.binomial', poisson.log1pexp', 'poisson.exp', 'aft.loglogistic', or 'ordinal.logistic'")
       }
     },
-
+    
     alpha = function(value) { # used in multi-class learner
       if (!missing(value)) {
         stop("`$alpha' cannot be modified directly except at the ensemble level", call. = FALSE)
@@ -705,7 +709,7 @@ VEBBoostNode <- R6Class(
       }
       return(self$ensemble$alpha) # otherwise, return ensemble's alpha
     },
-
+    
     # xi = function(value) { # optimal variational parameters, set to +sqrt(mu2)
     #   if (!missing(value)) {
     #     stop("`$xi` cannot be modified directly", call. = FALSE)
@@ -739,7 +743,7 @@ VEBBoostNode <- R6Class(
       }
       return(sqrt(self$root$mu2 + self$alpha^2 - 2*self$alpha*self$root$mu1))
     },
-
+    
     d = function(value) { # d == 1/xi * (g(xi) - .5), n x K matrix
       if (!missing(value)) {
         stop("'$d' cannot be modified directly", call. = FALSE)
@@ -750,14 +754,14 @@ VEBBoostNode <- R6Class(
       d[xi == 0] = .25 # case of 0/0 (e.g. x_i is all 0), use L'Hopital
       return(d)
     },
-
+    
     isConstant = function(value) { # uses node's constant check function and current fit to see if it is essentially a constant function
       if (!missing(value)) {
         stop("'$isConstant' cannot be modified directly", call. = FALSE)
       }
       return(self$constCheckFunction(self$currentFit))
     },
-
+    
     isLocked = function(value) { # locked <=> V < V_tol, or both learners directly connected (sibling and parent's sibling) are constant
       if (missing(value)) {
         if (self$isLeaf) {
@@ -773,7 +777,7 @@ VEBBoostNode <- R6Class(
         }
       }
     },
-
+    
     pred_mu1 = function(value) { # predicted first moment given new data
       if (!missing(value)) {
         if (self$isLeaf) {
@@ -794,7 +798,7 @@ VEBBoostNode <- R6Class(
         }
       }
     },
-
+    
     pred_mu2 = function(value) { # predicted second moment given new data
       if (!missing(value)) {
         if (self$isLeaf) {

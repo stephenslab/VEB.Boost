@@ -123,7 +123,7 @@ weighted_SER = function(X, Y, sigma2, init = list(V = NULL), max_lV = 0, lin_pri
 
   KL_div = calc_KL(mu, alpha, sigma2_post, prior_weights, V)
 
-  return(list(mu1 = as.numeric(mu1), mu2 = as.numeric(mu2), KL_div = KL_div, alpha = alpha, mu = mu, sigma2_post = sigma2_post, intercept = intercept, V = V, X_avg = X_avg, Y_avg = Y_avg))
+  return(list(mu1 = as.numeric(mu1), mu2 = as.numeric(mu2), KL_div = KL_div, alpha = alpha, mu = mu, sigma2_post = sigma2_post, intercept = intercept, V = V, X_avg = X_avg, Y_avg = Y_avg, prior_weights = prior_weights))
 }
 
 fitFnSusieStumps = function(X, Y, sigma2, init) {

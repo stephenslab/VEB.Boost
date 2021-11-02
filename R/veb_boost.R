@@ -34,6 +34,9 @@
 #'
 #' @param constCheckFunctions is either a single constant check function, or a list of length \code{k} of constant check functions
 #' to be used in each term of the sum of nodes
+#' 
+#' @param extrapolateFunctions is either a single fit extrapolation function, or a list of length \code{k} of fit extrapolation functions
+#' to be used in each term of the sum of nodes
 #'
 #' @param growTree is a logical for if we should grow the tree after convergence (TRUE), or only use the initial tree
 #' structure (FALSE)
@@ -69,6 +72,10 @@
 #' For AFT, exposure is 1 for non-censored observations, and 0 for right-censored observations
 #'
 #' @param verbose is a logical flag specifying whether we should report convergence information as we go
+#' 
+#' @param extrapolate tells the algorithm how often to use HER extrapolation.
+#' Use 0 for no extrapolation, 1 for extrapolation at every step, 2 for extrapolation every other, etc
+#' 
 #'
 #' @param mc.cores is the number of cores to use in mclapply, only used in family == "multinomial", and only
 #' supported on UNIX systems, where mclapply works. NOT CURRENTLY SUPPORTED
@@ -125,7 +132,7 @@
 veb_boost = function(X, Y, X_test = NULL, fitFunctions, predFunctions, constCheckFunctions,
                      growTree = TRUE, k = 1, d = 1, growMode = c("+*", "+", "*"), sigma2 = NULL, addMrAsh = FALSE, R = NULL,
                      changeToConstant = FALSE, family = c("gaussian", "binomial", "multinomial", "negative.binomial", "poisson.log1pexp", "poisson.exp", "aft.loglogistic", "ordinal.logistic"),
-                     exposure = NULL, tol = nrow(as.matrix(Y)) / 10000, verbose = TRUE, mc.cores = 1) {
+                     exposure = NULL, tol = nrow(as.matrix(Y)) / 10000, verbose = TRUE, maxit = Inf, mc.cores = 1) {
 
   ### Check Inputs ###
   if (!(is.vector(Y) || ((family == 'aft.loglogistic') && (is_valid_matrix(Y)) && (ncol(Y) == 2)))) {
@@ -261,8 +268,8 @@ veb_boost = function(X, Y, X_test = NULL, fitFunctions, predFunctions, constChec
   ### Run Gaussian/Binomial Cases ###
   if (family %in% c("gaussian", "binomial", "negative.binomial", "poisson.log1pexp", "poisson.exp", "aft.loglogistic", "ordinal.logistic")) {
     # initialize tree
-    learner = initialize_veb_boost_tree(X = X, Y = Y, k = k, d = d, fitFunctions = fitFunctions, predFunctions = predFunctions,
-                                               constCheckFunctions = constCheckFunctions, addMrAsh = addMrAsh, R = R, family = family, exposure = exposure)
+    learner = initialize_veb_boost_tree(X = X, Y = Y, k = k, d = d, fitFunctions = fitFunctions, predFunctions = predFunctions, constCheckFunctions = constCheckFunctions, 
+                                        addMrAsh = addMrAsh, R = R, family = family, exposure = exposure)
     if (family == "gaussian") {
       learner$sigma2 = if (is.null(sigma2)) var(Y) else sigma2
     } else if (family == "aft.loglogistic") {
@@ -280,7 +287,7 @@ veb_boost = function(X, Y, X_test = NULL, fitFunctions, predFunctions, constChec
     update_sigma2 = ifelse(is.null(sigma2), family %in% c("gaussian", "aft.loglogistic", "ordinal.logistic"), FALSE) # only update variance if Gaussian , or AFT model
 
     # converge fit once
-    learner$convergeFit(tol, update_sigma2 = update_sigma2, verbose = FALSE)
+    learner$convergeFit(tol, update_sigma2 = update_sigma2, verbose = FALSE, maxit = maxit)
 
     # if growing tree, continue w/ growing tree & fitting to convergence
     if (growTree) {
@@ -289,7 +296,7 @@ veb_boost = function(X, Y, X_test = NULL, fitFunctions, predFunctions, constChec
         cat("\n")
       }
       
-      learner$convergeFitAll(tol = tol, update_sigma2 = update_sigma2, growMode = growMode, changeToConstant = changeToConstant, verbose = FALSE)
+      learner$convergeFitAll(tol = tol, update_sigma2 = update_sigma2, growMode = growMode, changeToConstant = changeToConstant, verbose = FALSE, maxit = maxit)
 
       # while ((tail(tail(learner$ELBO_progress, 1)[[1]], 1) - tail(tail(learner$ELBO_progress, 2)[[1]], 1) > tol) && 
       #        (length(Traverse(learner, filterFun = function(node) node$isLeaf & !node$isLocked)) > 0) && (tail(tail(learner$ELBO_progress, 1)[[1]], 1) != Inf)) {
@@ -299,7 +306,7 @@ veb_boost = function(X, Y, X_test = NULL, fitFunctions, predFunctions, constChec
           cat(paste("ELBO: ", round(learner$ELBO, 3), sep = ""))
           cat("\n")
         }
-        learner$convergeFitAll(tol = tol, update_sigma2 = update_sigma2, growMode = growMode, changeToConstant = changeToConstant, verbose = FALSE)
+        learner$convergeFitAll(tol = tol, update_sigma2 = update_sigma2, growMode = growMode, changeToConstant = changeToConstant, verbose = FALSE, maxit = maxit)
       }
       
     }
@@ -428,6 +435,11 @@ veb_boost_stumps = function(X, Y, X_test = NULL, include_linear = NULL, include_
                             num_cuts = ceiling(min(length(Y) / 5, max(100, sqrt(length(Y))))), 
                             use_quants = TRUE, scale_X = c("sd", "max", "NA"), 
                             max_log_prior_var = 0, lin_prior_prob = 0.5, ...) {
+  # # Set higher priority for this process
+  # psnice_init = tools::psnice()
+  # on.exit({tools::psnice(tools::psnice(value = psnice_init))})
+  # tools::psnice(value = 0 - 10*(Sys.info()["sysname"] == "Windows"))
+
   ### Check Inputs ###
   # Check X
   if (!is_valid_matrix(X)) {
@@ -566,7 +578,7 @@ veb_boost_stumps = function(X, Y, X_test = NULL, include_linear = NULL, include_
 
   # Run
   veb.fit = veb_boost(X = X_stumps, Y = Y, X_test = X_test_stumps, 
-                      fitFunctions = fitFnSusieStumps_maxlV, predFunctions = predFnSusieStumps, constCheckFunctions = constCheckFnSusieStumps,
+                      fitFunctions = fitFnSusieStumps_maxlV, predFunctions = predFnSusieStumps, constCheckFunctions = constCheckFnSusieStumps, 
                       ...)
   
   return(veb.fit)
@@ -672,4 +684,45 @@ veb_boost_flam = function(X, Y, X_test = NULL,
   
   return(veb.fit)
 }
+
+
+# veb_boost_greedy_tree = function(X, Y, k, d, tol = length(Y)/10000, ...) {
+#   ELBOs = numeric(1000)
+#   ELBOs[1] = -Inf
+#   i = 2
+#   veb.fit = veb_boost_stumps(X, Y, k = k, d = d, growTree = FALSE, ...)
+#   veb.fit$Do(function(node) node$name = synchronicity::uuid())
+#   ELBOs[i] = veb.fit$ELBO
+#   cat(paste("ELBO: ", round(ELBOs[i], 3), "\n", sep = ""))
+#   while (ELBOs[i] - ELBOs[i-1] > tol) {
+#     add.tree = veb_boost(X = veb.fit$X, Y = veb.fit$Y - veb.fit$mu1, fitFunctions = veb.fit$leaves[[1]]$fitFunction, predFunctions = veb.fit$leaves[[1]]$predFunction, constCheckFunctions = veb.fit$leaves[[1]]$constCheckFunction, 
+#                          sigma2 = veb.fit$sigma2, k = k, d = d, growTree = FALSE)
+#     add.tree$X = NULL
+#     add.tree$Do(function(node) node$name = synchronicity::uuid())
+#     
+#     newRoot = VEBBoostNode$new(name = synchronicity::uuid(), operator = "+")
+#     newRoot$X = veb.fit$X
+#     newRoot$Y = veb.fit$raw_Y
+#     newRoot$family = veb.fit$family
+#     newRoot$sigma2 = veb.fit$sigma2
+#     
+#     veb.fit$X = NULL
+#     veb.fit$Y = NULL
+#     veb.fit$sigma2 = NULL
+#     
+#     newRoot$AddChildNode(veb.fit)
+#     newRoot$AddChildNode(add.tree)
+#     veb.fit = newRoot
+#     
+#     veb.fit$updateMoments()
+#     veb.fit$updateSigma2()
+#     i = i + 1
+#     ELBOs[i] = veb.fit$ELBO
+#     cat(paste("ELBO: ", round(ELBOs[i], 3), "\n", sep = ""))
+#   }
+#   
+#   veb.fit$convergeFit(tol, TRUE)
+#   
+#   return(veb.fit)
+# }
 

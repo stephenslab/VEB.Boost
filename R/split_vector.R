@@ -6,5 +6,8 @@
 #' b = c(rep(1,3),rep(2,4),rep(3,3))
 #' split_vector(b,c(3,4,3))
 split_vector = function(b,nvar){
+  if (length(b) == 1) {
+    b = rep(b, sum(nvar))
+  }
   split(b,rep(1:length(nvar), nvar))
 }

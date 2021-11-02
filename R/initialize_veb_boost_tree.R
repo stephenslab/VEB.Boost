@@ -27,7 +27,8 @@
 #' @param family is what family the response is
 
 initialize_veb_boost_tree = function(X, Y, k = 1, d = 1, fitFunctions = list(fitFnSusieStumps), predFunctions = list(predFnSusieStumps),
-                                     constCheckFunctions = list(constCheckFnSusieStumps), addMrAsh = FALSE, R = NULL, family = c("gaussian", "binomial", "negative.binomial", "poisson.log1pexp", "poisson.exp", "aft.loglogistic", "ordinal.logistic"), exposure = NULL) {
+                                         constCheckFunctions = list(constCheckFnSusieStumps), 
+                                         addMrAsh = FALSE, R = NULL, family = c("gaussian", "binomial", "negative.binomial", "poisson.log1pexp", "poisson.exp", "aft.loglogistic", "ordinal.logistic"), exposure = NULL) {
   family = match.arg(family)
   if (length(d) == 1) {
     d = rep(d, k)
@@ -41,7 +42,7 @@ initialize_veb_boost_tree = function(X, Y, k = 1, d = 1, fitFunctions = list(fit
   if (length(constCheckFunctions) == 1) {
     constCheckFunctions = rep(constCheckFunctions, k)
   }
-  
+
   if (addMrAsh) {
     k = k + 1
     d = c(1, d)
@@ -68,7 +69,7 @@ initialize_veb_boost_tree = function(X, Y, k = 1, d = 1, fitFunctions = list(fit
   } else {
     mu_init = 0
   }
-
+  
   # start by making overall addition of k learners structure
   veb_boost_learner = VEBBoostNode$new(ifelse(addMrAsh, "mu_mrAsh", "mu_0"), fitFunction = fitFunctions[[1]], predFunction = predFunctions[[1]], constCheckFunction = constCheckFunctions[[1]], currentFit = list(mu1 = mu_init, mu2 = mu_init^2, KL_div = 0))
   if (addMrAsh) {
@@ -87,12 +88,12 @@ initialize_veb_boost_tree = function(X, Y, k = 1, d = 1, fitFunctions = list(fit
       learner$AddSiblingVEB(add_learner, "+", paste("combine_", learner$root$leafCount, sep = ""))
     }
   }
-
+  
   # now, add predictor object to the root
   veb_boost_learner$X = X
   # and add exposure
   veb_boost_learner$exposure = exposure
-
+  
   # now, add multiplicative components, where left-most moments are initialized to 0, and others are initialized to 1 (to avoid infinite variance issue)
   base_learners = veb_boost_learner$leaves
   for (branch in base_learners) {
@@ -133,7 +134,7 @@ initialize_veb_boost_tree = function(X, Y, k = 1, d = 1, fitFunctions = list(fit
     # re_learner$isLocked = TRUE
     # veb_boost_learner$AddSiblingVEB(re_learner, "+", paste("combine_", learner$root$leafCount, sep = ""))
   }
-
+  
   return(veb_boost_learner)
-
+  
 }
