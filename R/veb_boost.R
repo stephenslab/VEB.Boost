@@ -73,9 +73,10 @@
 #'
 #' @param verbose is a logical flag specifying whether we should report convergence information as we go
 #' 
-#' @param extrapolate tells the algorithm how often to use HER extrapolation.
-#' Use 0 for no extrapolation, 1 for extrapolation at every step, 2 for extrapolation every other, etc
+#' @param maxit is the maximum number of iterations for each version of the VEB-Boost tree
 #' 
+#' @param backfit is a logical. If TRUE, then after the algorithm is done, it'll run through once more with the
+#' current tree and fit to convergence. Useful when, e.g. maxit = 1. 
 #'
 #' @param mc.cores is the number of cores to use in mclapply, only used in family == "multinomial", and only
 #' supported on UNIX systems, where mclapply works. NOT CURRENTLY SUPPORTED
@@ -132,7 +133,7 @@
 veb_boost = function(X, Y, X_test = NULL, fitFunctions, predFunctions, constCheckFunctions,
                      growTree = TRUE, k = 1, d = 1, growMode = c("+*", "+", "*"), sigma2 = NULL, addMrAsh = FALSE, R = NULL,
                      changeToConstant = FALSE, family = c("gaussian", "binomial", "multinomial", "negative.binomial", "poisson.log1pexp", "poisson.exp", "aft.loglogistic", "ordinal.logistic"),
-                     exposure = NULL, tol = nrow(as.matrix(Y)) / 10000, verbose = TRUE, maxit = Inf, mc.cores = 1) {
+                     exposure = NULL, tol = nrow(as.matrix(Y)) / 10000, verbose = TRUE, maxit = Inf, backfit = FALSE, mc.cores = 1) {
 
   ### Check Inputs ###
   if (!(is.vector(Y) || ((family == 'aft.loglogistic') && (is_valid_matrix(Y)) && (ncol(Y) == 2)))) {
@@ -158,6 +159,9 @@ veb_boost = function(X, Y, X_test = NULL, fitFunctions, predFunctions, constChec
   }
   if (!(changeToConstant %in% c(TRUE, FALSE))) {
     stop("'changeToConstant' must be either TRUE or FALSE")
+  }
+  if (!(backfit %in% c(TRUE, FALSE))) {
+    stop("'backfit' must be either TRUE or FALSE")
   }
   # Scalars
   if ((k < 1) || (k %% 1 != 0)) {
@@ -250,6 +254,12 @@ veb_boost = function(X, Y, X_test = NULL, fitFunctions, predFunctions, constChec
     message("Parallel multinomial updates not currently supported, setting 'mc.cores' to 1")
     mc.cores = 1
   }
+  # maxit
+  if (maxit < 1) {
+    stop("'maxit' must be a positive integer")
+  }
+  maxit = ceiling(maxit)
+  
 
   # get censoring types for AFT model
   if (family == "aft.loglogistic") {
@@ -312,6 +322,9 @@ veb_boost = function(X, Y, X_test = NULL, fitFunctions, predFunctions, constChec
     }
     
     learner$lockLearners(growMode = growMode, changeToConstant = changeToConstant) # change to constant at the end if needed
+    if (backfit) { # converge again, if backfitting
+      learner$convergeFit(tol, update_sigma2 = update_sigma2, verbose = FALSE, maxit = Inf)
+    }
     
     if (!is.null(X_test)) {
       learner$predict(X_test, 1)
@@ -434,7 +447,7 @@ veb_boost = function(X, Y, X_test = NULL, fitFunctions, predFunctions, constChec
 veb_boost_stumps = function(X, Y, X_test = NULL, include_linear = NULL, include_stumps = NULL, 
                             num_cuts = ceiling(min(length(Y) / 5, max(100, sqrt(length(Y))))), 
                             use_quants = TRUE, scale_X = c("sd", "max", "NA"), 
-                            max_log_prior_var = 0, lin_prior_prob = 0.5, ...) {
+                            max_log_prior_var = 0, lin_prior_prob = 0.5, nthreads = ceiling(parallel::detectCores(logical = FALSE) / 2), ...) {
   # # Set higher priority for this process
   # psnice_init = tools::psnice()
   # on.exit({tools::psnice(tools::psnice(value = psnice_init))})
@@ -554,8 +567,11 @@ veb_boost_stumps = function(X, Y, X_test = NULL, include_linear = NULL, include_
       cuts = lapply(1:p, function(j) col_ranges[j, 1]*(1 - ppts) + col_ranges[j, 2]*ppts)
     }
   }
-  X_stumps = make_stumps_matrix(X, include_linear, include_stumps, cuts)
-  
+  if (inherits(X, "dgCMatrix")) {
+    X_stumps = make_stumps_matrix_sp_cpp(X, 1*include_linear, 1*include_stumps, cuts, nthreads)
+  } else {
+    X_stumps = make_stumps_matrix_cpp(X, 1*include_linear, 1*include_stumps, cuts, nthreads)
+  }  
   
   # set up testing data, if any
   X_test_stumps = NULL
@@ -569,160 +585,122 @@ veb_boost_stumps = function(X, Y, X_test = NULL, include_linear = NULL, include_
       cuts = vector('list', p)
       cuts[which(include_stumps)] = brs
     }
-    X_test_stumps = make_stumps_matrix(X_test, include_linear, include_stumps, cuts)
-  }
+    if (inherits(X, "dgCMatrix")) {
+      X_test_stumps = make_stumps_matrix_sp_cpp(X_test, 1*include_linear, 1*include_stumps, cuts, nthreads)
+    } else {
+      X_test_stumps = make_stumps_matrix_cpp(X_test, 1*include_linear, 1*include_stumps, cuts, nthreads)
+    }  }
   
   fitFnSusieStumps_maxlV = function(X, Y, sigma2, init) {
-    return(weighted_SER(X, Y, sigma2, init, max_log_prior_var, lin_prior_prob))
+    return(weighted_SER_cpp(X, Y, sigma2, init, max_log_prior_var, lin_prior_prob))
   }
 
   # Run
   veb.fit = veb_boost(X = X_stumps, Y = Y, X_test = X_test_stumps, 
-                      fitFunctions = fitFnSusieStumps_maxlV, predFunctions = predFnSusieStumps, constCheckFunctions = constCheckFnSusieStumps, 
+                      fitFunctions = fitFnSusieStumps_maxlV, predFunctions = predFnSusieStumps_cpp, constCheckFunctions = constCheckFnSusieStumps, 
                       ...)
   
   return(veb.fit)
 }
 
 
-#' Wrapper for using VEB-Boost with the FLAM prior w/ stumps
+#' #' Wrapper for using VEB-Boost with the FLAM prior w/ stumps
+#' #' 
+#' #' @details
+#' #'
+#' #' This function performs VEB-Boosting, where the prior to be used is the FLAM prior, and our predictors are the stumps made from the columns of X
+#' #' 
+#' #' @param X An (n x p) numeric matrix to be used as the predictors (currently, this wrapper forces all nodes to use the same X)
+#' #' 
+#' #' @param Y is a numeric vector response
+#' #' 
+#' #' @param X_test is an optional (m X p) matrix to be used as the testing data. Posterior mean response is saved in the output's field \code{$pred_mu1}
+#' #' 
+#' #' @param num_cuts is a whole number of length 1 or p specifying how many cuts to make when making the stumps terms.
+#' #' If the length is 1, this value gets recycled for all columns of X.
+#' #' For entries corresponding to the indices where \code{include_stumps} is FALSE, these values are ignored.
+#' #' We use the quantiles from each predictor when making the stumps splits, using \code{num_cuts} of them.
+#' #' If \code{num_cuts = Inf}, then all values of the variables are used as split points.
+#' #' 
+#' #' @param use_quants is a logical for if the cut-points should be based off of the quantiles (`use_quants = TRUE`), or if the
+#' #' cut points should be evenly spaced in the range of the variable (`use_quants = FALSE`).
+#' #' 
+#' #' 
+#' #' @param ... Other arguments to be passed to \code{\link{veb_boost}}
+#' #' 
+#' #' @return A \code{VEB_Boost_Node} object with the fit
+#' #'
+#' #' @examples 
+#' #' set.seed(1)
+#' #' n = 1000
+#' #' p = 1000
+#' #' X = matrix(runif(n * p), nrow = n, ncol = p)
+#' #' Y = rnorm(n, 5*sin(3*X[, 1]) + 2*(X[, 2]^2) + 3*X[, 3]*X[, 4])
+#' #' veb.flam.fit = veb_boost_flam(X, Y, family = "gaussian")
+#' #' 
+#' #' @importFrom sparseMatrixStats colRanges
+#' #' @importFrom sparseMatrixStats colQuantiles
+#' #' 
+#' #' 
+#' #' 
 #' 
-#' @details
-#'
-#' This function performs VEB-Boosting, where the prior to be used is the FLAM prior, and our predictors are the stumps made from the columns of X
+#' veb_boost_flam = function(X, Y, X_test = NULL, 
+#'                             num_cuts = ceiling(min(length(Y) / 5, max(100, sqrt(length(Y))))), 
+#'                             use_quants = TRUE, ...) {
+#'   ### Check Inputs ###
+#'   # Check X
+#'   if (!is_valid_matrix(X)) {
+#'     stop("'X' must be a numeric matrix")
+#'   }
+#'   if (!is.null(X_test) && !is_valid_matrix(X_test)) {
+#'     stop("'X_test' must be a numeric matrix")
+#'   }
+#'   p = ncol(X)
+#'   # Make sure num_cuts is a positive whole number
+#'   if (any(num_cuts < 1) || any(num_cuts[is.finite(num_cuts)] %% 1 != 0)) {
+#'     stop("'num_cuts' must be a positive whole number or Inf")
+#'   }
+#'   if (length(num_cuts) != 1) {
+#'     stop("'num_cuts' must have length 1")
+#'   }
+#'   if (!(use_quants %in% c(TRUE, FALSE))) {
+#'     stop("'use_quants' must be either TRUE or FALSE")
+#'   }
 #' 
-#' @param X An (n x p) numeric matrix to be used as the predictors (currently, this wrapper forces all nodes to use the same X)
-#' 
-#' @param Y is a numeric vector response
-#' 
-#' @param X_test is an optional (m X p) matrix to be used as the testing data. Posterior mean response is saved in the output's field \code{$pred_mu1}
-#' 
-#' @param num_cuts is a whole number of length 1 or p specifying how many cuts to make when making the stumps terms.
-#' If the length is 1, this value gets recycled for all columns of X.
-#' For entries corresponding to the indices where \code{include_stumps} is FALSE, these values are ignored.
-#' We use the quantiles from each predictor when making the stumps splits, using \code{num_cuts} of them.
-#' If \code{num_cuts = Inf}, then all values of the variables are used as split points.
-#' 
-#' @param use_quants is a logical for if the cut-points should be based off of the quantiles (`use_quants = TRUE`), or if the
-#' cut points should be evenly spaced in the range of the variable (`use_quants = FALSE`).
-#' 
-#' 
-#' @param ... Other arguments to be passed to \code{\link{veb_boost}}
-#' 
-#' @return A \code{VEB_Boost_Node} object with the fit
-#'
-#' @examples 
-#' set.seed(1)
-#' n = 1000
-#' p = 1000
-#' X = matrix(runif(n * p), nrow = n, ncol = p)
-#' Y = rnorm(n, 5*sin(3*X[, 1]) + 2*(X[, 2]^2) + 3*X[, 3]*X[, 4])
-#' veb.flam.fit = veb_boost_flam(X, Y, family = "gaussian")
-#' 
-#' @importFrom sparseMatrixStats colRanges
-#' @importFrom sparseMatrixStats colQuantiles
-#' 
-#' @export
-#' 
-
-veb_boost_flam = function(X, Y, X_test = NULL, 
-                            num_cuts = ceiling(min(length(Y) / 5, max(100, sqrt(length(Y))))), 
-                            use_quants = TRUE, ...) {
-  ### Check Inputs ###
-  # Check X
-  if (!is_valid_matrix(X)) {
-    stop("'X' must be a numeric matrix")
-  }
-  if (!is.null(X_test) && !is_valid_matrix(X_test)) {
-    stop("'X_test' must be a numeric matrix")
-  }
-  p = ncol(X)
-  # Make sure num_cuts is a positive whole number
-  if (any(num_cuts < 1) || any(num_cuts[is.finite(num_cuts)] %% 1 != 0)) {
-    stop("'num_cuts' must be a positive whole number or Inf")
-  }
-  if (length(num_cuts) != 1) {
-    stop("'num_cuts' must have length 1")
-  }
-  if (!(use_quants %in% c(TRUE, FALSE))) {
-    stop("'use_quants' must be either TRUE or FALSE")
-  }
-
-  # Make stumps matrix
-  if (is.infinite(num_cuts)) {
-    cuts = NULL
-  } else {
-    ppts = ppoints(num_cuts)
-    if (use_quants) {
-      col_quants = sparseMatrixStats::colQuantiles(X, probs = ppts)
-      cuts = asplit(col_quants, 1)
-    } else {
-      col_ranges = sparseMatrixStats::colRanges(X)
-      cuts = lapply(1:p, function(j) col_ranges[j, 1]*(1 - ppts) + col_ranges[j, 2]*ppts)
-    }
-  }
-  X_stumps = make_stumps_matrix(X, FALSE, TRUE, cuts)
-  
-  
-  # set up testing data, if any
-  X_test_stumps = NULL
-  if (!is.null(X_test)) {
-    # re-define cuts, for case where cuts = NULL, so that we use training data for splits, not test data
-    if (is.null(cuts)) {
-      cuts = lapply(X_stumps, function(x) attr(x, 'br'))
-      if (any(include_linear)) {
-        cuts = cuts[-1]
-      }
-    }
-    X_test_stumps = make_stumps_matrix(X_test, FALSE, TRUE, cuts)
-  }
-  
-  # Run
-  veb.fit = veb_boost(X = X_stumps, Y = Y, X_test = X_test_stumps, 
-                      fitFunctions = fitFnFLAM, predFunctions = predFnFLAM, constCheckFunctions = constCheckFnFLAM,
-                      ...)
-  
-  return(veb.fit)
-}
-
-
-# veb_boost_greedy_tree = function(X, Y, k, d, tol = length(Y)/10000, ...) {
-#   ELBOs = numeric(1000)
-#   ELBOs[1] = -Inf
-#   i = 2
-#   veb.fit = veb_boost_stumps(X, Y, k = k, d = d, growTree = FALSE, ...)
-#   veb.fit$Do(function(node) node$name = synchronicity::uuid())
-#   ELBOs[i] = veb.fit$ELBO
-#   cat(paste("ELBO: ", round(ELBOs[i], 3), "\n", sep = ""))
-#   while (ELBOs[i] - ELBOs[i-1] > tol) {
-#     add.tree = veb_boost(X = veb.fit$X, Y = veb.fit$Y - veb.fit$mu1, fitFunctions = veb.fit$leaves[[1]]$fitFunction, predFunctions = veb.fit$leaves[[1]]$predFunction, constCheckFunctions = veb.fit$leaves[[1]]$constCheckFunction, 
-#                          sigma2 = veb.fit$sigma2, k = k, d = d, growTree = FALSE)
-#     add.tree$X = NULL
-#     add.tree$Do(function(node) node$name = synchronicity::uuid())
-#     
-#     newRoot = VEBBoostNode$new(name = synchronicity::uuid(), operator = "+")
-#     newRoot$X = veb.fit$X
-#     newRoot$Y = veb.fit$raw_Y
-#     newRoot$family = veb.fit$family
-#     newRoot$sigma2 = veb.fit$sigma2
-#     
-#     veb.fit$X = NULL
-#     veb.fit$Y = NULL
-#     veb.fit$sigma2 = NULL
-#     
-#     newRoot$AddChildNode(veb.fit)
-#     newRoot$AddChildNode(add.tree)
-#     veb.fit = newRoot
-#     
-#     veb.fit$updateMoments()
-#     veb.fit$updateSigma2()
-#     i = i + 1
-#     ELBOs[i] = veb.fit$ELBO
-#     cat(paste("ELBO: ", round(ELBOs[i], 3), "\n", sep = ""))
-#   }
-#   
-#   veb.fit$convergeFit(tol, TRUE)
-#   
-#   return(veb.fit)
-# }
+#'   # Make stumps matrix
+#'   if (is.infinite(num_cuts)) {
+#'     cuts = NULL
+#'   } else {
+#'     ppts = ppoints(num_cuts)
+#'     if (use_quants) {
+#'       col_quants = sparseMatrixStats::colQuantiles(X, probs = ppts)
+#'       cuts = asplit(col_quants, 1)
+#'     } else {
+#'       col_ranges = sparseMatrixStats::colRanges(X)
+#'       cuts = lapply(1:p, function(j) col_ranges[j, 1]*(1 - ppts) + col_ranges[j, 2]*ppts)
+#'     }
+#'   }
+#'   X_stumps = make_stumps_matrix(X, FALSE, TRUE, cuts)
+#'   
+#'   
+#'   # set up testing data, if any
+#'   X_test_stumps = NULL
+#'   if (!is.null(X_test)) {
+#'     # re-define cuts, for case where cuts = NULL, so that we use training data for splits, not test data
+#'     if (is.null(cuts)) {
+#'       cuts = lapply(X_stumps, function(x) attr(x, 'br'))
+#'       if (any(include_linear)) {
+#'         cuts = cuts[-1]
+#'       }
+#'     }
+#'     X_test_stumps = make_stumps_matrix(X_test, FALSE, TRUE, cuts)
+#'   }
+#'   
+#'   # Run
+#'   veb.fit = veb_boost(X = X_stumps, Y = Y, X_test = X_test_stumps, 
+#'                       fitFunctions = fitFnFLAM, predFunctions = predFnFLAM, constCheckFunctions = constCheckFnFLAM,
+#'                       ...)
+#'   
+#'   return(veb.fit)
+#' }
 

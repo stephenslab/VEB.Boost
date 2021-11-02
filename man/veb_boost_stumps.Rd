@@ -15,6 +15,7 @@ veb_boost_stumps(
   scale_X = c("sd", "max", "NA"),
   max_log_prior_var = 0,
   lin_prior_prob = 0.5,
+  nthreads = ceiling(parallel::detectCores(logical = FALSE)/2),
   ...
 )
 }

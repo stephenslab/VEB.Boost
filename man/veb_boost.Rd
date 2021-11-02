@@ -24,6 +24,8 @@ veb_boost(
   exposure = NULL,
   tol = nrow(as.matrix(Y))/10000,
   verbose = TRUE,
+  maxit = Inf,
+  backfit = FALSE,
   mc.cores = 1
 )
 }
@@ -85,8 +87,16 @@ For AFT, exposure is 1 for non-censored observations, and 0 for right-censored o
 
 \item{verbose}{is a logical flag specifying whether we should report convergence information as we go}
 
+\item{maxit}{is the maximum number of iterations for each version of the VEB-Boost tree}
+
+\item{backfit}{is a logical. If TRUE, then after the algorithm is done, it'll run through once more with the
+current tree and fit to convergence. Useful when, e.g. maxit = 1.}
+
 \item{mc.cores}{is the number of cores to use in mclapply, only used in family == "multinomial", and only
 supported on UNIX systems, where mclapply works. NOT CURRENTLY SUPPORTED}
+
+\item{extrapolateFunctions}{is either a single fit extrapolation function, or a list of length \code{k} of fit extrapolation functions
+to be used in each term of the sum of nodes}
 }
 \value{
 A \code{VEB_Boost_Node} object with the fit
