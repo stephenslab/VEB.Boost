@@ -1,6 +1,7 @@
+#include "MatrixClass.h"
 #include <RcppArmadillo.h>
 #include <memory>
-#include <MatrixClass.h>
+
 using namespace arma;
 using namespace std;
 using namespace Rcpp;
