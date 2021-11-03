@@ -2,9 +2,11 @@
 
 #include <RcppArmadillo.h>
 #include <memory>
+#if defined(_OPENMP)
+#include <omp.h>
+#endif
 
 // [[Rcpp::depends(RcppArmadillo)]]
-// [[Rcpp::plugins(openmp)]]
 
 namespace stumpsmatrix {
   // Matrix block abstract class, i.e. an element of X_stumps (either numeric matrix, or tfg matrix)
@@ -268,6 +270,9 @@ namespace stumpsmatrix {
       // constructor when using dense X
       StumpsMatrix(arma::mat X, arma::uvec _include_linear, arma::uvec _include_stumps, std::vector<arma::vec> cuts , unsigned int _ncores) {
         ncores = _ncores;
+        #if defined(_OPENMP)
+            omp_set_num_threads(ncores);
+        #endif   
         include_linear = _include_linear;
         include_stumps = _include_stumps;
         arma::uvec which_incl_stumps = arma::find(_include_stumps);
@@ -282,7 +287,7 @@ namespace stumpsmatrix {
         
         // first, make stumps blocks (in parallel)
         #if defined(_OPENMP)
-          #pragma omp parallel for schedule(dynamic) num_threads(ncores)
+          #pragma omp parallel for schedule(dynamic)
         #endif
         for (size_t i = 0; i < which_incl_stumps.size(); i++) {
           // blocks[i] = TFGMatrixBlock(X.col(which_incl_stumps[i]), cuts[which_incl_stumps[i]]);
@@ -307,6 +312,9 @@ namespace stumpsmatrix {
       // overload constructor when using sparse X
       StumpsMatrix(arma::sp_mat X, arma::uvec _include_linear, arma::uvec _include_stumps, std::vector<arma::vec> cuts , unsigned int _ncores) {
         ncores = _ncores;
+        #if defined(_OPENMP)
+            omp_set_num_threads(ncores);
+        #endif      
         include_linear = _include_linear;
         include_stumps = _include_stumps;
         ncol_lin = sum(include_linear);
@@ -321,7 +329,7 @@ namespace stumpsmatrix {
         
         // first, make stumps blocks (in parallel)
         #if defined(_OPENMP)
-          #pragma omp parallel for schedule(dynamic) num_threads(ncores)
+          #pragma omp parallel for schedule(dynamic)
         #endif
         for (size_t i = 0; i < which_incl_stumps.size(); i++) {
           // blocks[i] = TFGMatrixBlock(X.col(which_incl_stumps[i]), cuts[which_incl_stumps[i]]);
@@ -356,7 +364,7 @@ namespace stumpsmatrix {
       arma::vec compute_Xb(const arma::vec& b, const arma::vec& X_avg) {
         arma::vec Xb(nrow, arma::fill::zeros);
         #if defined(_OPENMP)
-          #pragma omp parallel for reduction(+:Xb) schedule(dynamic) num_threads(ncores)
+          #pragma omp parallel for reduction(+:Xb) schedule(dynamic)
         #endif
         for(size_t i = 0; i < blocks.size(); i++) {
           arma::vec my_Xb = blocks[i].get()->compute_Xb(b.rows(blocks[i].get()->col_offset, blocks[i].get()->col_offset + blocks[i].get()->ncol - 1), X_avg.rows(blocks[i].get()->col_offset, blocks[i].get()->col_offset + blocks[i].get()->ncol - 1));
@@ -368,7 +376,7 @@ namespace stumpsmatrix {
       arma::vec compute_Xty(const arma::vec& y, const arma::vec& X_avg) {
         arma::vec Xty(ncol);
         #if defined(_OPENMP)
-          #pragma omp parallel for schedule(dynamic) num_threads(ncores)
+          #pragma omp parallel for schedule(dynamic)
         #endif
         for(size_t i = 0; i < blocks.size(); i++) {
           Xty.rows(blocks[i].get()->col_offset, blocks[i].get()->col_offset + blocks[i].get()->ncol - 1) = blocks[i].get()->compute_Xty(y, X_avg.rows(blocks[i].get()->col_offset, blocks[i].get()->col_offset + blocks[i].get()->ncol - 1));
@@ -379,7 +387,7 @@ namespace stumpsmatrix {
       arma::vec compute_X2b(const arma::vec& b, const arma::vec& X_avg) {
         arma::vec X2b(nrow, arma::fill::zeros);
         #if defined(_OPENMP)
-          #pragma omp parallel for reduction(+:X2b) schedule(dynamic) num_threads(ncores)
+          #pragma omp parallel for reduction(+:X2b) schedule(dynamic)
         #endif
         for(size_t i = 0; i < blocks.size(); i++) {
           arma::vec my_X2b = blocks[i].get()->compute_X2b(b.rows(blocks[i].get()->col_offset, blocks[i].get()->col_offset + blocks[i].get()->ncol - 1), X_avg.rows(blocks[i].get()->col_offset, blocks[i].get()->col_offset + blocks[i].get()->ncol - 1));
@@ -391,7 +399,7 @@ namespace stumpsmatrix {
       arma::vec compute_X2ty(const arma::vec& y, const arma::vec& X_avg) {
         arma::vec X2ty(ncol);
         #if defined(_OPENMP)
-          #pragma omp parallel for schedule(dynamic) num_threads(ncores)
+          #pragma omp parallel for schedule(dynamic)
         #endif
         for(size_t i = 0; i < blocks.size(); i++) {
           X2ty.rows(blocks[i].get()->col_offset, blocks[i].get()->col_offset + blocks[i].get()->ncol - 1) = blocks[i].get()->compute_X2ty(y, X_avg.rows(blocks[i].get()->col_offset, blocks[i].get()->col_offset + blocks[i].get()->ncol - 1));

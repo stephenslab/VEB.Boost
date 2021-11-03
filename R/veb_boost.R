@@ -441,6 +441,8 @@ veb_boost = function(X, Y, X_test = NULL, fitFunctions, predFunctions, constChec
 #' @importFrom sparseMatrixStats colRanges
 #' @importFrom sparseMatrixStats colQuantiles
 #' 
+#' @useDynLib VEB.Boost, .registration=TRUE
+#' 
 #' @export
 #' 
 
