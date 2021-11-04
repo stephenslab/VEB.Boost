@@ -110,6 +110,9 @@ namespace stumpsmatrix {
         counts[i]++;
         t_to_bin[order_t[j]] = i;
         j++;
+        if (j >= order_t.size()) {
+            break;
+        }
       }
     }
     unsigned int i = cuts.size();

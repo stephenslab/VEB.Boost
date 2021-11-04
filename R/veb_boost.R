@@ -587,11 +587,12 @@ veb_boost_stumps = function(X, Y, X_test = NULL, include_linear = NULL, include_
       cuts = vector('list', p)
       cuts[which(include_stumps)] = brs
     }
-    if (inherits(X, "dgCMatrix")) {
+    if (inherits(X_test, "dgCMatrix")) {
       X_test_stumps = make_stumps_matrix_sp_cpp(X_test, 1*include_linear, 1*include_stumps, cuts, nthreads)
     } else {
       X_test_stumps = make_stumps_matrix_cpp(X_test, 1*include_linear, 1*include_stumps, cuts, nthreads)
-    }  }
+    } 
+  }
   
   fitFnSusieStumps_maxlV = function(X, Y, sigma2, init) {
     return(weighted_SER_cpp(X, Y, sigma2, init, max_log_prior_var, lin_prior_prob))
