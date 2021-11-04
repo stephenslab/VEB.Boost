@@ -106,13 +106,10 @@ namespace stumpsmatrix {
     arma::uvec t_to_bin(t.size());
     unsigned int j = 0;
     for (unsigned int i = 0; i < cuts.size(); i++) {
-      while (t[order_t[j]] <= cuts[i]) {
+      while ((j < order_t.size()) && (t[order_t[j]] <= cuts[i])) {
         counts[i]++;
         t_to_bin[order_t[j]] = i;
         j++;
-        if (j >= order_t.size()) {
-            break;
-        }
       }
     }
     unsigned int i = cuts.size();
