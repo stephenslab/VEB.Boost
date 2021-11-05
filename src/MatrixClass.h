@@ -32,41 +32,41 @@ namespace stumpsmatrix {
       unsigned int col_offset; // column offset in entire matrix, i.e. sum of # columns before this block
   };
   
-  // Numeric matrix block, i.e. first element of X_stumps when including linear
-  class NumericMatrixBlock: public MatrixBlock {
-    public:
-      ~NumericMatrixBlock() {}
-      
-      arma::vec compute_Xb(const arma::vec& b, const arma::vec& X_avg) {
-        arma::vec res = X*b - arma::as_scalar(arma::dot(b, X_avg));
-        return(res);
-      }
-      
-      arma::vec compute_Xty(const arma::vec& y, const arma::vec& X_avg) {
-        arma::vec res = arma::trans((y.t() * X)) - (X_avg  * arma::sum(y));
-        return(res);
-      }
-      
-      arma::vec compute_X2b(const arma::vec& b, const arma::vec& X_avg) {
-        arma::vec X2b(X.n_rows); X2b = X2*b;
-        arma::vec res = X2b - 2*X*(b%X_avg) + arma::as_scalar(arma::sum(X_avg % X_avg % b));
-        return(res);
-      }
-      
-      arma::vec compute_X2ty(const arma::vec& y, const arma::vec& X_avg) {
-        arma::vec X2ty(X.n_cols); X2ty = arma::trans((y.t() * X2));
-        arma::vec res = X2ty - 2*arma::trans((y.t() * X))%X_avg + ((X_avg % X_avg) * arma::sum(y));
-        return(res);
-      }
-    
-    protected:
-      // I think SparseMatrixBlock can overload these with arma::sp_mat types?
-      arma::mat X;
-      arma::mat X2;
-  };
+  //// Numeric matrix block, i.e. first element of X_stumps when including linear
+  //class NumericMatrixBlock: public MatrixBlock {
+  //  public:
+  //    ~NumericMatrixBlock() {}
+  //    
+  //    arma::vec compute_Xb(const arma::vec& b, const arma::vec& X_avg) {
+  //      arma::vec res = X*b - arma::as_scalar(arma::dot(b, X_avg));
+  //      return(res);
+  //    }
+  //    
+  //    arma::vec compute_Xty(const arma::vec& y, const arma::vec& X_avg) {
+  //      arma::vec res = arma::trans((y.t() * X)) - (X_avg  * arma::sum(y));
+  //      return(res);
+  //    }
+  //    
+  //    arma::vec compute_X2b(const arma::vec& b, const arma::vec& X_avg) {
+  //      arma::vec X2b(X.n_rows); X2b = X2*b;
+  //      arma::vec res = X2b - 2*X*(b%X_avg) + arma::as_scalar(arma::sum(X_avg % X_avg % b));
+  //      return(res);
+  //    }
+  //    
+  //    arma::vec compute_X2ty(const arma::vec& y, const arma::vec& X_avg) {
+  //      arma::vec X2ty(X.n_cols); X2ty = arma::trans((y.t() * X2));
+  //      arma::vec res = X2ty - 2*arma::trans((y.t() * X))%X_avg + ((X_avg % X_avg) * arma::sum(y));
+  //      return(res);
+  //    }
+  //  
+  //  protected:
+  //    // I think SparseMatrixBlock can overload these with arma::sp_mat types?
+  //    arma::mat X;
+  //    arma::mat X2;
+  //};
   
   // Dense Numeric matrix block
-  class DenseNumericMatrixBlock: public NumericMatrixBlock {
+  class DenseNumericMatrixBlock: public MatrixBlock {
     public:
       DenseNumericMatrixBlock(arma::mat X_in) {
         X = X_in;
@@ -76,14 +76,36 @@ namespace stumpsmatrix {
       }
       
       ~DenseNumericMatrixBlock() {}
+
+      arma::vec compute_Xb(const arma::vec& b, const arma::vec& X_avg) {
+          arma::vec res = X * b - arma::as_scalar(arma::dot(b, X_avg));
+          return(res);
+      }
+
+      arma::vec compute_Xty(const arma::vec& y, const arma::vec& X_avg) {
+          arma::vec res = arma::trans((y.t() * X)) - (X_avg * arma::sum(y));
+          return(res);
+      }
+
+      arma::vec compute_X2b(const arma::vec& b, const arma::vec& X_avg) {
+          arma::vec X2b(nrow); X2b = X2 * b;
+          arma::vec res = X2b - 2 * X * (b % X_avg) + arma::as_scalar(arma::sum(X_avg % X_avg % b));
+          return(res);
+      }
+
+      arma::vec compute_X2ty(const arma::vec& y, const arma::vec& X_avg) {
+          arma::vec X2ty(ncol); X2ty = arma::trans((y.t() * X2));
+          arma::vec res = X2ty - 2 * arma::trans((y.t() * X)) % X_avg + ((X_avg % X_avg) * arma::sum(y));
+          return(res);
+      }
       
-    // protected:
-    //   mat X; // data
-    //   mat X2; // X%X
+    protected:
+        arma::mat X; // data
+        arma::mat X2; // X%X
   };
   
   // Sparse Numeric matrix block
-  class SparseNumericMatrixBlock: public NumericMatrixBlock {
+  class SparseNumericMatrixBlock: public MatrixBlock {
     public:
       SparseNumericMatrixBlock(arma::sp_mat X_in) {
         X = X_in;
@@ -93,6 +115,28 @@ namespace stumpsmatrix {
       }
       
       ~SparseNumericMatrixBlock() {}
+
+      arma::vec compute_Xb(const arma::vec& b, const arma::vec& X_avg) {
+          arma::vec res = X * b - arma::as_scalar(arma::dot(b, X_avg));
+          return(res);
+      }
+
+      arma::vec compute_Xty(const arma::vec& y, const arma::vec& X_avg) {
+          arma::vec res = arma::trans((y.t() * X)) - (X_avg * arma::sum(y));
+          return(res);
+      }
+
+      arma::vec compute_X2b(const arma::vec& b, const arma::vec& X_avg) {
+          arma::vec X2b(nrow); X2b = X2 * b;
+          arma::vec res = X2b - 2 * X * (b % X_avg) + arma::as_scalar(arma::sum(X_avg % X_avg % b));
+          return(res);
+      }
+
+      arma::vec compute_X2ty(const arma::vec& y, const arma::vec& X_avg) {
+          arma::vec X2ty(ncol); X2ty = arma::trans((y.t() * X2));
+          arma::vec res = X2ty - 2 * arma::trans((y.t() * X)) % X_avg + ((X_avg % X_avg) * arma::sum(y));
+          return(res);
+      }
       
     protected:
       arma::sp_mat X; // data
@@ -151,7 +195,7 @@ namespace stumpsmatrix {
         bin_to_t = arma::cumsum(buckets_and_counts[1]);
         arma::uvec nz = arma::find(buckets_and_counts[0] != null_bin);
         if (2*nz.size() < nrow) { // if more efficient to store sparse, do so
-          t_to_bin = arma::join_cols(buckets_and_counts[0].elem(nz), nz);
+          t_to_bin = arma::join_rows(buckets_and_counts[0].elem(nz), nz);
         } else { // otherwise, store normally
           t_to_bin = arma::umat(buckets_and_counts[0]);
         }
@@ -187,7 +231,7 @@ namespace stumpsmatrix {
         bin_to_t = arma::cumsum(buckets_and_counts[1]);
         arma::uvec nz = arma::find(buckets_and_counts[0] != null_bin);
         if (2*nz.size() < nrow) { // if more efficient to store sparse, do so
-          t_to_bin = arma::join_cols(buckets_and_counts[0].elem(nz), nz);
+          t_to_bin = arma::join_rows(buckets_and_counts[0].elem(nz), nz);
         } else { // otherwise, store normally
           t_to_bin = arma::umat(buckets_and_counts[0]);
         }
@@ -234,11 +278,14 @@ namespace stumpsmatrix {
           arma::uvec which_null_bin = arma::conv_to<arma::uvec>::from(diff_i);
           csy = arma::cumsum(y.elem(arma::join_cols(order_t_low, which_null_bin, order_t_high)));
         }
-        arma::vec res = csy.elem(bin_to_t - 1);
-        if (bin_to_t[0] == 0) { // weird corner-case in R, CHECK IF IT'S NEEDED IN C++
-          arma::vec z = {0.0};
-          res = arma::join_cols(z, res);
-        }
+        //arma::vec res = csy.elem(bin_to_t - 1);
+        //if (bin_to_t[0] == 0) { // weird corner-case in R, NEED TO FIX IN C++ (b/c above will index at -1)
+        //  arma::vec z = {0.0};
+        //  res = arma::join_cols(z, res);
+        //}
+        // I THINK the below takes care of the corner case mentioned above....
+        csy = arma::join_cols(arma::zeros<arma::vec>(1), csy);
+        arma::vec res = csy.elem(bin_to_t);
         res = res - (X_avg  * arma::sum(y));
         return(res);
       }
@@ -275,8 +322,8 @@ namespace stumpsmatrix {
         #endif   
         include_linear = _include_linear;
         include_stumps = _include_stumps;
+        ncol_lin = arma::sum(include_linear); 
         arma::uvec which_incl_stumps = arma::find(_include_stumps);
-        ncol_lin = arma::sum(include_linear);
         //blocks = std::vector<MatrixBlock> (which_incl_stumps.size(), MatrixBlock());
         bool any_incl_lin = (ncol_lin > 0);
         if (any_incl_lin) {
