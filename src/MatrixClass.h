@@ -2,6 +2,7 @@
 
 #include <RcppArmadillo.h>
 #include <memory>
+#include <array>
 #if defined(_OPENMP)
 #include <omp.h>
 #endif
