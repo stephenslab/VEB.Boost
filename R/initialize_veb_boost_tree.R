@@ -19,16 +19,20 @@
 #'
 #' @param constCheckFunctions is a list of length 1 or `k` of constant check functions to be used in
 #' each term of the sum of nodes
-#' 
+#'
+#' @param memoryEfficient is a flag for is we should be memory efficient at the cost of computational time
+#'
+#' @param weights is a vector of the same length as Y weighting the observations. Relative weights are used and we take care of the scaling for you
+#'
 #' @param addMrAsh is a logical for if a mr.ash learner should be added to the VEB-Boost tree
-#' 
+#'
 #' @param R is a correlation matrix for any random effect to be added to the VEB-Boost tree (if NULL, no random intercept is included)
 #'
 #' @param family is what family the response is
 
 initialize_veb_boost_tree = function(X, Y, k = 1, d = 1, fitFunctions = list(fitFnSusieStumps), predFunctions = list(predFnSusieStumps),
-                                         constCheckFunctions = list(constCheckFnSusieStumps), 
-                                         addMrAsh = FALSE, R = NULL, family = c("gaussian", "binomial", "negative.binomial", "poisson.log1pexp", "poisson.exp", "aft.loglogistic", "ordinal.logistic"), exposure = NULL) {
+                                         constCheckFunctions = list(constCheckFnSusieStumps), memoryEfficient = FALSE, weights = 1,
+                                         addMrAsh = FALSE, R = NULL, family = c("gaussian", "binomial", "negative.binomial", "poisson.log1pexp", "aft.loglogistic", "ordinal.logistic"), exposure = NULL) {
   family = match.arg(family)
   if (length(d) == 1) {
     d = rep(d, k)
@@ -50,7 +54,7 @@ initialize_veb_boost_tree = function(X, Y, k = 1, d = 1, fitFunctions = list(fit
     predFunctions = c(predFn.mr.ash, predFunctions)
     constCheckFunctions = c(constCheckFn.mr.ash, constCheckFunctions)
   }
-  
+
   # 1/k of approximate average
   if (family == "gaussian") {
     mu_init = mean(Y) / k
@@ -69,7 +73,7 @@ initialize_veb_boost_tree = function(X, Y, k = 1, d = 1, fitFunctions = list(fit
   } else {
     mu_init = 0
   }
-  
+
   # start by making overall addition of k learners structure
   veb_boost_learner = VEBBoostNode$new(ifelse(addMrAsh, "mu_mrAsh", "mu_0"), fitFunction = fitFunctions[[1]], predFunction = predFunctions[[1]], constCheckFunction = constCheckFunctions[[1]], currentFit = list(mu1 = mu_init, mu2 = mu_init^2, KL_div = 0))
   if (addMrAsh) {
@@ -78,6 +82,8 @@ initialize_veb_boost_tree = function(X, Y, k = 1, d = 1, fitFunctions = list(fit
   # also add family and response
   veb_boost_learner$family = family
   veb_boost_learner$Y = Y
+  veb_boost_learner$memoryEfficient = memoryEfficient
+  veb_boost_learner$weights = weights
   for (i in 1:ceiling(log2(k))) {
     base_learners = veb_boost_learner$leaves
     for (learner in base_learners) {
@@ -88,12 +94,12 @@ initialize_veb_boost_tree = function(X, Y, k = 1, d = 1, fitFunctions = list(fit
       learner$AddSiblingVEB(add_learner, "+", paste("combine_", learner$root$leafCount, sep = ""))
     }
   }
-  
+
   # now, add predictor object to the root
   veb_boost_learner$X = X
   # and add exposure
   veb_boost_learner$exposure = exposure
-  
+
   # now, add multiplicative components, where left-most moments are initialized to 0, and others are initialized to 1 (to avoid infinite variance issue)
   base_learners = veb_boost_learner$leaves
   for (branch in base_learners) {
@@ -115,7 +121,7 @@ initialize_veb_boost_tree = function(X, Y, k = 1, d = 1, fitFunctions = list(fit
       }
     }
   }
-  
+
   if (!is.null(R)) {
     re_learner = VEBBoostNode$new("mu_RE", fitFunction = fitFnRandomEffect, predFunction = predFnRandomEffect, constCheckFunction = constCheckFnRandomEffect, currentFit = list(mu1 = 0, mu2 = 0, KL_div = 0))
     re_learner$X = R
@@ -134,7 +140,7 @@ initialize_veb_boost_tree = function(X, Y, k = 1, d = 1, fitFunctions = list(fit
     # re_learner$isLocked = TRUE
     # veb_boost_learner$AddSiblingVEB(re_learner, "+", paste("combine_", learner$root$leafCount, sep = ""))
   }
-  
+
   return(veb_boost_learner)
-  
+
 }

@@ -12,10 +12,12 @@ initialize_veb_boost_tree(
   fitFunctions = list(fitFnSusieStumps),
   predFunctions = list(predFnSusieStumps),
   constCheckFunctions = list(constCheckFnSusieStumps),
+  memoryEfficient = FALSE,
+  weights = 1,
   addMrAsh = FALSE,
   R = NULL,
   family = c("gaussian", "binomial", "negative.binomial", "poisson.log1pexp",
-    "poisson.exp", "aft.loglogistic", "ordinal.logistic"),
+    "aft.loglogistic", "ordinal.logistic"),
   exposure = NULL
 )
 }
@@ -36,6 +38,10 @@ each term of the sum of nodes}
 
 \item{constCheckFunctions}{is a list of length 1 or `k` of constant check functions to be used in
 each term of the sum of nodes}
+
+\item{memoryEfficient}{is a flag for is we should be memory efficient at the cost of computational time}
+
+\item{weights}{is a vector of the same length as Y weighting the observations. Relative weights are used and we take care of the scaling for you}
 
 \item{addMrAsh}{is a logical for if a mr.ash learner should be added to the VEB-Boost tree}
 

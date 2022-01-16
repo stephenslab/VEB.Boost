@@ -1,6 +1,6 @@
 Package: VEB.Boost
 Title: This package provides the functionality to perform VEB-Boosting.
-Version: 0.0.0.9026
+Version: 0.0.0.9027
 Authors@R: 
     person(given = "Andrew",
            family = "Goldstein",
@@ -12,8 +12,9 @@ License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
 RoxygenNote: 7.1.2
-Imports: data.tree, parallel, spatstat.utils, Matrix, R6, matrixStats, sparseMatrixStats, Rcpp (>= 1.0.7), RcppArmadillo
+Imports: data.tree, parallel, spatstat.utils, Matrix, R6, matrixStats, emulator, Rcpp (>= 1.0.7), RcppArmadillo, BH
 Suggests: knitr, rmarkdown
-LinkingTo: Rcpp, RcppArmadillo
+Remotes: stephenslab/mr.ash.alpha, bioc::3.14/sparseMatrixStats
+LinkingTo: Rcpp, RcppArmadillo, BH
 VignetteBuilder: knitr
 ByteCompile: true

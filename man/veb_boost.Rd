@@ -16,11 +16,14 @@ veb_boost(
   d = 1,
   growMode = c("+*", "+", "*"),
   sigma2 = NULL,
+  memoryEfficient = FALSE,
   addMrAsh = FALSE,
   R = NULL,
   changeToConstant = FALSE,
   family = c("gaussian", "binomial", "multinomial", "negative.binomial",
-    "poisson.log1pexp", "poisson.exp", "aft.loglogistic", "ordinal.logistic"),
+    "poisson.log1pexp", "aft.loglogistic", "ordinal.logistic"),
+  weights = 1,
+  scaleWeights = TRUE,
   exposure = NULL,
   tol = nrow(as.matrix(Y))/10000,
   verbose = TRUE,
@@ -79,6 +82,11 @@ the fitting function of that node to fit exactly a constant value}
 
 \item{family}{is what family the response is}
 
+\item{weights}{is a vector of the same length as Y weighting the observations in the log-likelihood}
+
+\item{scaleWeights}{is a logical for if the weights should be scaled to have mean 1 (recommended). If you choose to not scale the weights, then
+the relative importance of the KL-divergence term will change (possibly desirable, i.e. increase or decrease shrinkage towards the prior)}
+
 \item{exposure}{is a scalar or a vector used for the Poisson regression, NB, and AFT cases. For Poisson, we assume that the response
 \deqn{Y_i \sim Pois(c_i \lambda_i)} for given exposure \deqn{c_i}, and we model \deqn{\lambda_i}
 For AFT, exposure is 1 for non-censored observations, and 0 for right-censored observations}
@@ -105,7 +113,7 @@ A \code{VEB_Boost_Node} object with the fit
 Solves the VEB-Boost regression problem using the supplied inputs
 }
 \details{
-Given a pre-specified arithmetic tree structure \deqn{T(\mu_1, \dots, \mu_L)}, \deqn{\mu_l := h_l(\beta_l)}, 
+Given a pre-specified arithmetic tree structure \deqn{T(\mu_1, \dots, \mu_L)}, \deqn{\mu_l := h_l(\beta_l)},
 priors \deqn{\beta_l \sim g_l(\cdot)}, and inputs for the response, VEB-Boosting is performed.
 
 A cyclic CAVI scheme is used, where we cycle over the leaf nodes and update the approxiomation
@@ -121,7 +129,7 @@ p = 1000
 X = matrix(runif(n * p), nrow = n, ncol = p)
 Y = rnorm(n, 5*sin(3*X[, 1]) + 2*(X[, 2]^2) + 3*X[, 3]*X[, 4])
 
-For input X and list \code{fit} returned from fitFn (encoding the variational posterior for b), computes either the 1st or 2nd 
+For input X and list \code{fit} returned from fitFn (encoding the variational posterior for b), computes either the 1st or 2nd
 predFn = function(X, fit, moment = c(1, 2)) {
   # posterior moments of the response (depending on if \code{moment} is 1 or 2)
   if (moment == 1) {
