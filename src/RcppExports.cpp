@@ -13,32 +13,60 @@ Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
 // make_stumps_matrix_cpp
-XPtr<stumpsmatrix::StumpsMatrix> make_stumps_matrix_cpp(arma::mat X, arma::uvec include_linear, arma::uvec include_stumps, std::vector<arma::vec> cuts, unsigned int ncores);
-RcppExport SEXP _VEB_Boost_make_stumps_matrix_cpp(SEXP XSEXP, SEXP include_linearSEXP, SEXP include_stumpsSEXP, SEXP cutsSEXP, SEXP ncoresSEXP) {
+XPtr<stumpsmatrix::StumpsMatrix> make_stumps_matrix_cpp(arma::mat& X, Rcpp::Nullable<Rcpp::IntegerVector> include_linear, Rcpp::Nullable<Rcpp::IntegerVector> include_stumps, unsigned int num_cuts, bool use_quants, unsigned int scale_X, unsigned int ncores);
+RcppExport SEXP _VEB_Boost_make_stumps_matrix_cpp(SEXP XSEXP, SEXP include_linearSEXP, SEXP include_stumpsSEXP, SEXP num_cutsSEXP, SEXP use_quantsSEXP, SEXP scale_XSEXP, SEXP ncoresSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< arma::mat >::type X(XSEXP);
-    Rcpp::traits::input_parameter< arma::uvec >::type include_linear(include_linearSEXP);
-    Rcpp::traits::input_parameter< arma::uvec >::type include_stumps(include_stumpsSEXP);
-    Rcpp::traits::input_parameter< std::vector<arma::vec> >::type cuts(cutsSEXP);
+    Rcpp::traits::input_parameter< arma::mat& >::type X(XSEXP);
+    Rcpp::traits::input_parameter< Rcpp::Nullable<Rcpp::IntegerVector> >::type include_linear(include_linearSEXP);
+    Rcpp::traits::input_parameter< Rcpp::Nullable<Rcpp::IntegerVector> >::type include_stumps(include_stumpsSEXP);
+    Rcpp::traits::input_parameter< unsigned int >::type num_cuts(num_cutsSEXP);
+    Rcpp::traits::input_parameter< bool >::type use_quants(use_quantsSEXP);
+    Rcpp::traits::input_parameter< unsigned int >::type scale_X(scale_XSEXP);
     Rcpp::traits::input_parameter< unsigned int >::type ncores(ncoresSEXP);
-    rcpp_result_gen = Rcpp::wrap(make_stumps_matrix_cpp(X, include_linear, include_stumps, cuts, ncores));
+    rcpp_result_gen = Rcpp::wrap(make_stumps_matrix_cpp(X, include_linear, include_stumps, num_cuts, use_quants, scale_X, ncores));
     return rcpp_result_gen;
 END_RCPP
 }
 // make_stumps_matrix_sp_cpp
-XPtr<stumpsmatrix::StumpsMatrix> make_stumps_matrix_sp_cpp(arma::sp_mat X, arma::uvec include_linear, arma::uvec include_stumps, std::vector<arma::vec> cuts, unsigned int ncores);
-RcppExport SEXP _VEB_Boost_make_stumps_matrix_sp_cpp(SEXP XSEXP, SEXP include_linearSEXP, SEXP include_stumpsSEXP, SEXP cutsSEXP, SEXP ncoresSEXP) {
+XPtr<stumpsmatrix::StumpsMatrix> make_stumps_matrix_sp_cpp(arma::sp_mat& X, Rcpp::Nullable<Rcpp::IntegerVector> include_linear, Rcpp::Nullable<Rcpp::IntegerVector> include_stumps, unsigned int num_cuts, bool use_quants, unsigned int scale_X, unsigned int ncores);
+RcppExport SEXP _VEB_Boost_make_stumps_matrix_sp_cpp(SEXP XSEXP, SEXP include_linearSEXP, SEXP include_stumpsSEXP, SEXP num_cutsSEXP, SEXP use_quantsSEXP, SEXP scale_XSEXP, SEXP ncoresSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< arma::sp_mat >::type X(XSEXP);
-    Rcpp::traits::input_parameter< arma::uvec >::type include_linear(include_linearSEXP);
-    Rcpp::traits::input_parameter< arma::uvec >::type include_stumps(include_stumpsSEXP);
-    Rcpp::traits::input_parameter< std::vector<arma::vec> >::type cuts(cutsSEXP);
+    Rcpp::traits::input_parameter< arma::sp_mat& >::type X(XSEXP);
+    Rcpp::traits::input_parameter< Rcpp::Nullable<Rcpp::IntegerVector> >::type include_linear(include_linearSEXP);
+    Rcpp::traits::input_parameter< Rcpp::Nullable<Rcpp::IntegerVector> >::type include_stumps(include_stumpsSEXP);
+    Rcpp::traits::input_parameter< unsigned int >::type num_cuts(num_cutsSEXP);
+    Rcpp::traits::input_parameter< bool >::type use_quants(use_quantsSEXP);
+    Rcpp::traits::input_parameter< unsigned int >::type scale_X(scale_XSEXP);
     Rcpp::traits::input_parameter< unsigned int >::type ncores(ncoresSEXP);
-    rcpp_result_gen = Rcpp::wrap(make_stumps_matrix_sp_cpp(X, include_linear, include_stumps, cuts, ncores));
+    rcpp_result_gen = Rcpp::wrap(make_stumps_matrix_sp_cpp(X, include_linear, include_stumps, num_cuts, use_quants, scale_X, ncores));
+    return rcpp_result_gen;
+END_RCPP
+}
+// make_stumps_test_matrix_cpp
+XPtr<stumpsmatrix::StumpsMatrix> make_stumps_test_matrix_cpp(arma::mat& X, XPtr<stumpsmatrix::StumpsMatrix> SM_in);
+RcppExport SEXP _VEB_Boost_make_stumps_test_matrix_cpp(SEXP XSEXP, SEXP SM_inSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< arma::mat& >::type X(XSEXP);
+    Rcpp::traits::input_parameter< XPtr<stumpsmatrix::StumpsMatrix> >::type SM_in(SM_inSEXP);
+    rcpp_result_gen = Rcpp::wrap(make_stumps_test_matrix_cpp(X, SM_in));
+    return rcpp_result_gen;
+END_RCPP
+}
+// make_stumps_test_matrix_sp_cpp
+XPtr<stumpsmatrix::StumpsMatrix> make_stumps_test_matrix_sp_cpp(arma::sp_mat& X, XPtr<stumpsmatrix::StumpsMatrix> SM_in);
+RcppExport SEXP _VEB_Boost_make_stumps_test_matrix_sp_cpp(SEXP XSEXP, SEXP SM_inSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< arma::sp_mat& >::type X(XSEXP);
+    Rcpp::traits::input_parameter< XPtr<stumpsmatrix::StumpsMatrix> >::type SM_in(SM_inSEXP);
+    rcpp_result_gen = Rcpp::wrap(make_stumps_test_matrix_sp_cpp(X, SM_in));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -73,8 +101,10 @@ END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_VEB_Boost_make_stumps_matrix_cpp", (DL_FUNC) &_VEB_Boost_make_stumps_matrix_cpp, 5},
-    {"_VEB_Boost_make_stumps_matrix_sp_cpp", (DL_FUNC) &_VEB_Boost_make_stumps_matrix_sp_cpp, 5},
+    {"_VEB_Boost_make_stumps_matrix_cpp", (DL_FUNC) &_VEB_Boost_make_stumps_matrix_cpp, 7},
+    {"_VEB_Boost_make_stumps_matrix_sp_cpp", (DL_FUNC) &_VEB_Boost_make_stumps_matrix_sp_cpp, 7},
+    {"_VEB_Boost_make_stumps_test_matrix_cpp", (DL_FUNC) &_VEB_Boost_make_stumps_test_matrix_cpp, 2},
+    {"_VEB_Boost_make_stumps_test_matrix_sp_cpp", (DL_FUNC) &_VEB_Boost_make_stumps_test_matrix_sp_cpp, 2},
     {"_VEB_Boost_weighted_SER_cpp", (DL_FUNC) &_VEB_Boost_weighted_SER_cpp, 6},
     {"_VEB_Boost_predFnSusieStumps_cpp", (DL_FUNC) &_VEB_Boost_predFnSusieStumps_cpp, 3},
     {NULL, NULL, 0}
