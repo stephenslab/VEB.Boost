@@ -459,8 +459,6 @@ veb_boost = function(X, Y, X_test = NULL, fitFunctions, predFunctions, constChec
 #' Y = rnorm(n, 5*sin(3*X[, 1]) + 2*(X[, 2]^2) + 3*X[, 3]*X[, 4])
 #' veb.stumps.fit = veb_boost_stumps(X, Y, include_linear = TRUE, family = "gaussian")
 #'
-#' @importFrom sparseMatrixStats colRanges
-#' @importFrom sparseMatrixStats colQuantiles
 #'
 #' @useDynLib VEB.Boost, .registration=TRUE
 #'
@@ -470,7 +468,7 @@ veb_boost = function(X, Y, X_test = NULL, fitFunctions, predFunctions, constChec
 veb_boost_stumps = function(X, Y, X_test = NULL, include_linear = NULL, include_stumps = NULL,
                             num_cuts = ceiling(min(length(Y) / 5, max(100, sqrt(length(Y))))),
                             use_quants = TRUE, scale_X = c("sd", "max", "NA"),
-                            max_log_prior_var = 0, lin_prior_prob = 0.5, nthreads = ceiling(parallel::detectCores(logical = FALSE) / 2), ...) {
+                            max_log_prior_var = 0, lin_prior_prob = 0.5, nthreads = ceiling(parallel::detectCores(logical = TRUE) / 2), ...) {
   # # Set higher priority for this process
   # psnice_init = tools::psnice()
   # on.exit({tools::psnice(tools::psnice(value = psnice_init))})
@@ -533,80 +531,89 @@ veb_boost_stumps = function(X, Y, X_test = NULL, include_linear = NULL, include_
     lin_prior_prob = min(1, max(0, lin_prior_prob))
   }
 
-  # scale X if needed
-  if (scale_X %in% c("max", "sd")) {
-    if (scale_X == "max") {
-      X_scale_factors = sparseMatrixStats::colMaxs(abs(X))
-    } else {
-      X_scale_factors = sparseMatrixStats::colSds(X)
-    }
-    if (inherits(X, "CsparseMatrix")) {
-      X@x = X@x / rep.int(X_scale_factors, diff(X@p))
-    } else {
-      X = sweep(X, 2, X_scale_factors, '/')
-    }
-    if (!is.null(X_test)) {
-      if (inherits(X_test, "CsparseMatrix")) {
-        X_test@x = X_test@x / rep.int(X_scale_factors, diff(X_test@p))
-      } else {
-        X_test = sweep(X_test, 2, X_scale_factors, '/')
-      }
-    }
-  }
+  # # scale X if needed
+  # if (scale_X %in% c("max", "sd")) {
+  #   if (scale_X == "max") {
+  #     X_scale_factors = sparseMatrixStats::colMaxs(abs(X))
+  #   } else {
+  #     X_scale_factors = sparseMatrixStats::colSds(X)
+  #   }
+  #   if (inherits(X, "CsparseMatrix")) {
+  #     X@x = X@x / rep.int(X_scale_factors, diff(X@p))
+  #   } else {
+  #     X = sweep(X, 2, X_scale_factors, '/')
+  #   }
+  #   if (!is.null(X_test)) {
+  #     if (inherits(X_test, "CsparseMatrix")) {
+  #       X_test@x = X_test@x / rep.int(X_scale_factors, diff(X_test@p))
+  #     } else {
+  #       X_test = sweep(X_test, 2, X_scale_factors, '/')
+  #     }
+  #   }
+  # }
+  scale_X = ifelse(scale_X == "sd", 1, ifelse(scale_X == "max", 2, 0))
   # get which columns to include as linear and stumps terms, if not provided
-  if (is.null(include_linear) | is.null(include_stumps)) {
-    n_unique = apply(X, 2, function(x) length(unique(x)))
-    if (is.null(include_linear)) {
-      include_linear = (n_unique > 1)
-    }
-    if (is.null(include_stumps)) {
-      include_stumps = (n_unique > 2)
-    }
+  # if (is.null(include_linear) | is.null(include_stumps)) {
+  #   n_unique = apply(X, 2, function(x) length(unique(x)))
+  #   if (is.null(include_linear)) {
+  #     include_linear = (n_unique > 1)
+  #   }
+  #   if (is.null(include_stumps)) {
+  #     include_stumps = (n_unique > 2)
+  #   }
+  # }
+  if (!is.null(include_linear) && length(include_linear) == 1) {
+    include_linear = rep(include_linear, p)
   }
-  # Make stumps matrix
-  if (is.infinite(num_cuts) | all(!include_stumps)) {
-    cuts = NULL
-  } else {
-    # if (length(num_cuts) == 1) {
-    #   num_cuts = rep(num_cuts, p)
-    # }
-    # cuts = rep(list(NULL), p)
-    # for (j in 1:p) {
-    #   if (is.finite(num_cuts[j])) {
-    #     if (use_quants) {
-    #       cuts[[j]] = quantile(X[, j], probs = qbeta(seq(from = 0, to = 1, length.out = num_cuts[j] + 2), .5, .5))[-c(1, num_cuts[j] + 2)]
-    #     } else {
-    #       cuts[[j]] = seq(from = min(X[, j]), to = max(X[, j]), length.out = num_cuts[j] + 2)[-c(1, num_cuts[j] + 2)]
-    #     }
-    #   }
-    # }
-    ppts = ppoints(num_cuts)
-    if (use_quants) {
-      col_quants = sparseMatrixStats::colQuantiles(X, probs = ppts)
-      # cuts = lapply(1:p, function(j) unique(col_quants[j, ]))
-      cuts = asplit(col_quants, 1)
-    } else {
-      col_ranges = sparseMatrixStats::colRanges(X)
-      cuts = lapply(1:p, function(j) col_ranges[j, 1]*(1 - ppts) + col_ranges[j, 2]*ppts)
-    }
+  if (!is.null(include_stumps) && length(include_stumps) == 1) {
+    include_stumps = rep(include_stumps, p)
+  }
+  # # Make stumps matrix
+  # if (is.infinite(num_cuts) | all(!include_stumps)) {
+  #   cuts = NULL
+  # } else {
+  #   # if (length(num_cuts) == 1) {
+  #   #   num_cuts = rep(num_cuts, p)
+  #   # }
+  #   # cuts = rep(list(NULL), p)
+  #   # for (j in 1:p) {
+  #   #   if (is.finite(num_cuts[j])) {
+  #   #     if (use_quants) {
+  #   #       cuts[[j]] = quantile(X[, j], probs = qbeta(seq(from = 0, to = 1, length.out = num_cuts[j] + 2), .5, .5))[-c(1, num_cuts[j] + 2)]
+  #   #     } else {
+  #   #       cuts[[j]] = seq(from = min(X[, j]), to = max(X[, j]), length.out = num_cuts[j] + 2)[-c(1, num_cuts[j] + 2)]
+  #   #     }
+  #   #   }
+  #   # }
+  #   ppts = ppoints(num_cuts)
+  #   if (use_quants) {
+  #     col_quants = sparseMatrixStats::colQuantiles(X, probs = ppts)
+  #     # cuts = lapply(1:p, function(j) unique(col_quants[j, ]))
+  #     cuts = asplit(col_quants, 1)
+  #   } else {
+  #     col_ranges = sparseMatrixStats::colRanges(X)
+  #     cuts = lapply(1:p, function(j) col_ranges[j, 1]*(1 - ppts) + col_ranges[j, 2]*ppts)
+  #   }
+  # }
+  if (is.infinite(num_cuts) | (!is.null(include_stumps) && all(!include_stumps))) {
+    num_cuts = 0
   }
   if (inherits(X, "dgCMatrix")) {
-    X_stumps = make_stumps_matrix_sp_cpp(X, 1*include_linear, 1*include_stumps, cuts, nthreads)
+    X_stumps = make_stumps_matrix_sp_cpp(X, include_linear, include_stumps, num_cuts, use_quants, scale_X, nthreads)
   } else {
-    X_stumps = make_stumps_matrix_cpp(X, 1*include_linear, 1*include_stumps, cuts, nthreads)
+    X_stumps = make_stumps_matrix_cpp(X, include_linear, include_stumps, num_cuts, use_quants, scale_X, nthreads)
   }
 
   # set up testing data, if any
   X_test_stumps = NULL
   if (!is.null(X_test)) {
-    # re-define cuts, for case where cuts = NULL, so that we use training data for splits, not test data
-    if (is.null(cuts) & any(include_stumps)) {
-      cuts = asplit(X, 2)
-    }
+    # if (inherits(X_test, "dgCMatrix") != inherits(X, "dgCMatrix")) {
+    #   stop("`X` and `X_test` must both either be sparse (i.e. `dgCMatrix`) or dense. Please convert types to match")
+    # }
     if (inherits(X_test, "dgCMatrix")) {
-      X_test_stumps = make_stumps_matrix_sp_cpp(X_test, 1*include_linear, 1*include_stumps, cuts, nthreads)
+      X_test_stumps = make_stumps_test_matrix_sp_cpp(X_test, X_stumps)
     } else {
-      X_test_stumps = make_stumps_matrix_cpp(X_test, 1*include_linear, 1*include_stumps, cuts, nthreads)
+      X_test_stumps = make_stumps_test_matrix_cpp(X_test, X_stumps)
     }
   }
 
