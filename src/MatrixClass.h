@@ -761,6 +761,15 @@ namespace stumpsmatrix {
               ncol += blocks[i].get()->ncol;
           }
       }
+
+      // function to get vector of ncol for each block
+      arma::uvec get_ncol_vec() {
+          arma::uvec ncol_vec(blocks.size());
+          for (size_t i = 0; i < blocks.size(); i++) {
+              ncol_vec[i] = blocks[i].get()->ncol;
+          }
+          return ncol_vec;
+      }
       
       ~StumpsMatrix() {
         for (size_t i = 0; i < blocks.size(); i++) {

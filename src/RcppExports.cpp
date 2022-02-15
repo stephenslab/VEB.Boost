@@ -99,6 +99,18 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// getAlphaByVar
+arma::vec getAlphaByVar(XPtr<stumpsmatrix::StumpsMatrix> xp, List currentFit);
+RcppExport SEXP _VEB_Boost_getAlphaByVar(SEXP xpSEXP, SEXP currentFitSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< XPtr<stumpsmatrix::StumpsMatrix> >::type xp(xpSEXP);
+    Rcpp::traits::input_parameter< List >::type currentFit(currentFitSEXP);
+    rcpp_result_gen = Rcpp::wrap(getAlphaByVar(xp, currentFit));
+    return rcpp_result_gen;
+END_RCPP
+}
 
 static const R_CallMethodDef CallEntries[] = {
     {"_VEB_Boost_make_stumps_matrix_cpp", (DL_FUNC) &_VEB_Boost_make_stumps_matrix_cpp, 7},
@@ -107,6 +119,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_VEB_Boost_make_stumps_test_matrix_sp_cpp", (DL_FUNC) &_VEB_Boost_make_stumps_test_matrix_sp_cpp, 2},
     {"_VEB_Boost_weighted_SER_cpp", (DL_FUNC) &_VEB_Boost_weighted_SER_cpp, 6},
     {"_VEB_Boost_predFnSusieStumps_cpp", (DL_FUNC) &_VEB_Boost_predFnSusieStumps_cpp, 3},
+    {"_VEB_Boost_getAlphaByVar", (DL_FUNC) &_VEB_Boost_getAlphaByVar, 2},
     {NULL, NULL, 0}
 };
 

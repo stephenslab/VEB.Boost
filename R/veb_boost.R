@@ -13,8 +13,20 @@
 #' We start with the arithmetic tree structure \deqn{T(\mu_1, \dots, \mu_L) = \sum_{i=1}^k \prod_{j=1}^{d_k} \mu_{i, j}}
 #'
 #'
-#' @param X is a predictor object to be used.
-#' This object can take any form, so long as the user-supplied \code{fitFunctions} and \code{predFunctions} know how to use them.
+#' @param learners is either a single "learner" object, or a list of k "learner" objects
+#' A learner object is comprised of:
+#' 1. a fit function $fitFunction: (X, Y, sigma2, currentFit) -> newFit (where a fit is a list that must contain $mu1, $mu2, and $KL_div)
+#' 2. a prediction function $predFunction: (X, fit, moment) -> posterior moment (1 or 2)
+#' 3. a constant check function $constCheckFunction: (fit) -> (TRUE/FALSE) to check if a fit is essentially constant
+#' 4. a current fit $currentFit: must contain $mu1 (first posterior moments), $mu2 (second posterior moments), and $KL_div (KL-divergence from q to prior) (can be NULL, at least to start)
+#' 5. a predictor object $X (whatever the $fitFunction and $predFunction take in), used for training (can be NULL, e.g. if using constLearner)
+#' 6. a predictor object $X_test (whatever the $fitFunction and $predFunction take in), used for testing (can be NULL)
+#' 7. a string $growMode for if the learner should be grown (or not)
+#' If \code{"+*"}, we grow mu_0 -> (mu_0 * mu_2) + mu_1
+#' If \code{"+"}, we grow mu_0 -> (mu_0 + mu_1)
+#' If \code{"*"}, we grow mu_0 -> (mu_0 * mu_1) (NOTE: Not recommended if we start with \code{k = 1})
+#' If \code{NULL}, we do not grow this learner
+#' 8. a logical $changeToConstant for if the learner should be changed to constant if constCheckFunction evaluates to TRUE
 #'
 #' @param Y is a numeric response. For all but the 'aft.loglogistic' family, this should be an n-vector.
 #' For the 'aft.loglogistic' family, this should be an n x 2 matrix, with the first column being the left end-point of survival time
@@ -22,46 +34,16 @@
 #' In the case of left-censored data, the left end-point should be 'NA', and in the case of right-censored data, the right end-point should be 'NA'.
 #' If the observation is uncensored, both end-points should be equal to the observed survival time.
 #'
-#' @param X_test is an optional predictor object to be used as the testing data. Posterior mean response is saved in the output's field \code{$pred_mu1}.
-#' Alternatively, after running \code{veb_boost}, the user can call the \code{$predict} method on the output, with \code{X_test} as the first
-#' argument, and \code{1} as the second argument.
-#'
-#' @param fitFunctions is either a single fitting function, or a list of length \code{k} of fitting functions to be used in
-#' each term on the sum of nodes
-#'
-#' @param predFunctions is either a single prediction function, or a list of length \code{k} of prediction functions to be used in
-#' each term of the sum of nodes
-#'
-#' @param constCheckFunctions is either a single constant check function, or a list of length \code{k} of constant check functions
-#' to be used in each term of the sum of nodes
-#'
-#' @param extrapolateFunctions is either a single fit extrapolation function, or a list of length \code{k} of fit extrapolation functions
-#' to be used in each term of the sum of nodes
-#'
-#' @param growTree is a logical for if we should grow the tree after convergence (TRUE), or only use the initial tree
-#' structure (FALSE)
-#'
 #' @param k is an integer for how many terms are in the sum of nodes
 #'
 #' @param d is either an integer, or an integer vector of length \code{k} for the multiplicative depth of each of the k terms
 #' NOTE: This can be dangerous. For example, if the fit starts out too large, then entire branhces will be fit to be exactly
 #' zero. When this happens, we end up dividing by 0 in places, and this results in NAs, -Inf, etc. USE AT YOUR OWN RISK
 #'
-#' @param growMode specifies how we grow the tree, either splitting nodes with addition, multiplication, or both
-#' If \code{+*}, we grow mu_0 -> (mu_0 * mu_2) + mu_1
-#' If \code{+}, we grow mu_0 -> (mu_0 + mu_1)
-#' If \code{*}, we grow mu_0 -> (mu_0 * mu_1) (NOTE: Not recommended if we start with \code{k = 1})
-#'
 #' @param sigma2 is a scalar/n-vector specifying a fixed residual variance. If not NULL, then the residual variance will be
 #' fixed to this value/vector. If NULL, then it will be initialized and updated automatically.
 #' This should be left as NULL unless you really know what you're doing. For safety, this can only be not NULL if family is gaussian
 #'
-#' @param addMrAsh a logical flag for if a Mr.Ash fit should be added to the full tree to "regress out" linear effects
-#'
-#' @param R is a correlation matrix for any random effect to be added to the VEB-Boost tree (if NULL, no random intercept is included)
-#'
-#' @param changeToConstant is a flag for if, when the fit is found to be basically constant, if we should actually change
-#' the fitting function of that node to fit exactly a constant value
 #'
 #' @param family is what family the response is
 #'
@@ -82,9 +64,6 @@
 #'
 #' @param backfit is a logical. If TRUE, then after the algorithm is done, it'll run through once more with the
 #' current tree and fit to convergence. Useful when, e.g. maxit = 1.
-#'
-#' @param mc.cores is the number of cores to use in mclapply, only used in family == "multinomial", and only
-#' supported on UNIX systems, where mclapply works. NOT CURRENTLY SUPPORTED
 #'
 #'
 #' @return A \code{VEB_Boost_Node} object with the fit
@@ -130,17 +109,21 @@
 #'     return(FALSE)
 #'   }
 #' }
-#' veb.fit = veb_boost(X, Y, fitFn, predFn, constCheckFn, family = "gaussian")
+#'
+#' learner = list(fitFunction = fitFn, predFunction = predFn, constCheckFunction = constCheckFn, currentFit = NULL, X = X, X_test = NULL, growMode = "+*)
+#' veb.fit = veb_boost(learner, family = "gaussian")
 #'
 #' @export
 #'
 
-veb_boost = function(X, Y, X_test = NULL, fitFunctions, predFunctions, constCheckFunctions,
-                     growTree = TRUE, k = 1, d = 1, growMode = c("+*", "+", "*"), sigma2 = NULL, memoryEfficient = FALSE, addMrAsh = FALSE, R = NULL,
-                     changeToConstant = FALSE, family = c("gaussian", "binomial", "multinomial", "negative.binomial", "poisson.log1pexp", "aft.loglogistic", "ordinal.logistic"),
-                     weights = 1, scaleWeights = TRUE, exposure = NULL, tol = nrow(as.matrix(Y)) / 10000, verbose = TRUE, maxit = Inf, backfit = FALSE, mc.cores = 1) {
+veb_boost = function(learners, Y, k = 1, d = 1, sigma2 = NULL,
+                     family = c("gaussian", "binomial", "multinomial", "negative.binomial", "poisson.log1pexp", "aft.loglogistic", "ordinal.logistic"),
+                     weights = 1, scaleWeights = TRUE, exposure = NULL, tol = nrow(as.matrix(Y)) / 10000, verbose = TRUE, maxit = Inf, backfit = FALSE) {
 
   ### Check Inputs ###
+  if (family == "multinomial") {
+    Y = as.character(Y)
+  }
   if (!(is.vector(Y) || ((family == 'aft.loglogistic') && (is_valid_matrix(Y)) && (ncol(Y) == 2)))) {
     stop("'Y' must be a vector (or a matrix with 2 columns for the 'aft.loglogistic' case)")
   }
@@ -155,22 +138,6 @@ veb_boost = function(X, Y, X_test = NULL, fitFunctions, predFunctions, constChec
       stop("'sigma2' must contain only positive values")
     }
   }
-  # Logical Flags
-  if (!(growTree %in% c(TRUE, FALSE))) {
-    stop("'growTree' must be either TRUE or FALSE")
-  }
-  if (!(verbose %in% c(TRUE, FALSE))) {
-    stop("'verbose' must be either TRUE or FALSE")
-  }
-  if (!(changeToConstant %in% c(TRUE, FALSE))) {
-    stop("'changeToConstant' must be either TRUE or FALSE")
-  }
-  if (!(backfit %in% c(TRUE, FALSE))) {
-    stop("'backfit' must be either TRUE or FALSE")
-  }
-  if (!(scaleWeights %in% c(TRUE, FALSE))) {
-    stop("'scaleWeights' must be either TRUE or FALSE")
-  }
   # Scalars
   if ((k < 1) || (k %% 1 != 0)) {
     stop("'k' must be a positive whole number")
@@ -178,27 +145,34 @@ veb_boost = function(X, Y, X_test = NULL, fitFunctions, predFunctions, constChec
   if ((d < 1) || (d %% 1 != 0)) {
     stop("'d' must be a positive whole number")
   }
-  # Functions
-  if (class(fitFunctions) == "function") {
-    fitFunctions = list(fitFunctions)
+  # Logical Flags
+  if (!(verbose %in% c(TRUE, FALSE))) {
+    stop("'verbose' must be either TRUE or FALSE")
   }
-  if ((class(fitFunctions) != "list") || !(length(fitFunctions) %in% c(1, k)) || (class(fitFunctions[[1]]) != "function")) {
-    stop("'fitFunctions' must either be a function, or a list of functions of length 1 or k")
+  if (!(backfit %in% c(TRUE, FALSE))) {
+    stop("'backfit' must be either TRUE or FALSE")
   }
-  if (class(predFunctions) == "function") {
-    predFunctions = list(predFunctions)
+  if (!(scaleWeights %in% c(TRUE, FALSE))) {
+    stop("'scaleWeights' must be either TRUE or FALSE")
   }
-  if ((class(predFunctions) != "list") || !(length(predFunctions) %in% c(1, k)) || (class(predFunctions[[1]]) != "function")) {
-    stop("'predFunctions' must either be a function, or a list of functions of length 1 or k")
+  # learner object
+  if ((class(learners) != "list") || !(length(learners) %in% c(1, k))) {
+    stop("'learners' must be a list of length 1 or k")
   }
-  if (class(constCheckFunctions) == "function") {
-    constCheckFunctions = list(constCheckFunctions)
+  for (learner in learners) {
+    if (class(learner$fitFunction) != "function") {
+      stop("'$fitFunction' must be a function")
+    }
+    if (class(learner$predFunction) != "function") {
+      stop("'$predFunction' must be a function")
+    }
+    if (class(learner$constCheckFunction) != "function") {
+      stop("'$constCheckFunction' must be a function")
+    }
+    if (!is.null(learner$growMode) && !(learner$growMode %in% c("+*", "+", "*"))) {
+      stop("'$growMode' must be either NULL, or in c('+*', '+', '*')")
+    }
   }
-  if ((class(constCheckFunctions) != "list") || !(length(constCheckFunctions) %in% c(1, k)) || (class(constCheckFunctions[[1]]) != "function")) {
-    stop("'constCheckFunctions' must either be a function, or a list of functions of length 1 or k")
-  }
-  # Grow Mode
-  growMode = match.arg(growMode)
   # Family
   family = match.arg(family)
   # weights
@@ -228,16 +202,6 @@ veb_boost = function(X, Y, X_test = NULL, fitFunctions, predFunctions, constChec
   if (!is.null(exposure)) {
     if (any(exposure < 0)) {
       stop("When using the poisson on NB families, 'exposure' must be positive")
-    }
-  }
-  # RE correlation matrix
-  if (!is.null(R)) {
-    # if (!is_valid_matrix(R) || !Matrix::isSymmetric(R) || (max(abs(R)) > 1) || any(diag(R) != 1)) {
-    if (!is_valid_matrix(R) || !Matrix::isSymmetric(R) || (max(abs(R)) > 1)) {
-      stop("'R' must be a correlation matrix")
-    }
-    if (is.null(attr(R, 'svd'))) {
-      stop("'R' must have an attribute names 'svd' that contains the (reduced) SVD of R (see, e.g. sparsesvs::sparsesvd)")
     }
   }
   # Tolerance
@@ -270,11 +234,6 @@ veb_boost = function(X, Y, X_test = NULL, fitFunctions, predFunctions, constChec
       stop("'Y' must contain only integer values from 1 to max(Y)")
     }
   }
-  # mc.cores
-  if (mc.cores != 1) {
-    message("Parallel multinomial updates not currently supported, setting 'mc.cores' to 1")
-    mc.cores = 1
-  }
   # maxit
   if (maxit < 1) {
     stop("'maxit' must be a positive integer")
@@ -299,101 +258,89 @@ veb_boost = function(X, Y, X_test = NULL, fitFunctions, predFunctions, constChec
   ### Run Non-multinomial Cases ###
   if (family != "multinomial") {
     # initialize tree
-    learner = initialize_veb_boost_tree(X = X, Y = Y, k = k, d = d, fitFunctions = fitFunctions, predFunctions = predFunctions, constCheckFunctions = constCheckFunctions,
-                                        memoryEfficient = memoryEfficient, weights = weights, addMrAsh = addMrAsh, R = R, family = family, exposure = exposure)
+    veb_boost_tree = initialize_veb_boost_tree(learners = learners, Y = Y, k = k, d = d, weights = weights, family = family, exposure = exposure)
     if (family == "gaussian") {
-      learner$sigma2 = if (is.null(sigma2)) var(Y) else sigma2
+      veb_boost_tree$sigma2 = if (is.null(sigma2)) var(Y) else sigma2
     } else if (family == "aft.loglogistic") {
-      learner$sigma2 = var(rowMeans(attr(Y, 'log_Y'), na.rm = TRUE))
+      veb_boost_tree$sigma2 = var(rowMeans(attr(Y, 'log_Y'), na.rm = TRUE))
     } else if (family == "ordinal.logistic") {
-      learner$cutpoints = seq(from = -max(Y), to = max(Y), length.out = max(Y) - 1)
-      attr(learner$cutpoints, "log_Y") = matrix(NA, nrow = length(Y), ncol = 2)
-      attr(learner$cutpoints, "log_Y")[attr(Y, 'left_cens'), 2] = learner$cutpoints[1]
-      for (k in 2:(length(learner$cutpoints))) {
-        attr(learner$cutpoints, "log_Y")[which(Y == k), 1] = learner$cutpoints[k-1]
-        attr(learner$cutpoints, "log_Y")[which(Y == k), 2] = learner$cutpoints[k]
+      veb_boost_tree$cutpoints = seq(from = -max(Y), to = max(Y), length.out = max(Y) - 1)
+      attr(veb_boost_tree$cutpoints, "log_Y") = matrix(NA, nrow = length(Y), ncol = 2)
+      attr(veb_boost_tree$cutpoints, "log_Y")[attr(Y, 'left_cens'), 2] = veb_boost_tree$cutpoints[1]
+      for (k in 2:(length(veb_boost_tree$cutpoints))) {
+        attr(veb_boost_tree$cutpoints, "log_Y")[which(Y == k), 1] = veb_boost_tree$cutpoints[k-1]
+        attr(veb_boost_tree$cutpoints, "log_Y")[which(Y == k), 2] = veb_boost_tree$cutpoints[k]
       }
-      attr(learner$cutpoints, "log_Y")[attr(Y, 'right_cens'), 1] = tail(learner$cutpoints, 1)
+      attr(veb_boost_tree$cutpoints, "log_Y")[attr(Y, 'right_cens'), 1] = tail(veb_boost_tree$cutpoints, 1)
     }
     update_sigma2 = ifelse(is.null(sigma2), family %in% c("gaussian", "aft.loglogistic", "ordinal.logistic"), FALSE) # only update variance if Gaussian , or AFT model
 
     # converge fit once
-    learner$convergeFit(tol, update_sigma2 = update_sigma2, verbose = FALSE, maxit = maxit)
+    veb_boost_tree$convergeFit(tol, update_sigma2 = update_sigma2, verbose = FALSE, maxit = maxit)
 
     # if growing tree, continue w/ growing tree & fitting to convergence
-    if (growTree) {
+    if (verbose) {
+      cat(paste("ELBO: ", round(veb_boost_tree$ELBO, 3), sep = ""))
+      cat("\n")
+    }
+
+    veb_boost_tree$convergeFitAll(tol = tol, update_sigma2 = update_sigma2, verbose = FALSE, maxit = maxit)
+
+    # while ((tail(tail(veb_boost_tree$ELBO_progress, 1)[[1]], 1) - tail(tail(veb_boost_tree$ELBO_progress, 2)[[1]], 1) > tol) &&
+    #        (length(Traverse(veb_boost_tree, filterFun = function(node) node$isLeaf & !node$isLocked)) > 0) && (tail(tail(veb_boost_tree$ELBO_progress, 1)[[1]], 1) != Inf)) {
+    while ((mean(diff(sapply(tail(veb_boost_tree$ELBO_progress, 3), tail, 1))) > 10*tol) &&
+           (length(Traverse(veb_boost_tree, filterFun = function(node) node$isLeaf & !node$isLocked)) > 0) && (tail(tail(veb_boost_tree$ELBO_progress, 1)[[1]], 1) != Inf)) {
       if (verbose) {
-        cat(paste("ELBO: ", round(learner$ELBO, 3), sep = ""))
+        cat(paste("ELBO: ", round(veb_boost_tree$ELBO, 3), sep = ""))
         cat("\n")
       }
-
-      learner$convergeFitAll(tol = tol, update_sigma2 = update_sigma2, growMode = growMode, changeToConstant = changeToConstant, verbose = FALSE, maxit = maxit)
-
-      # while ((tail(tail(learner$ELBO_progress, 1)[[1]], 1) - tail(tail(learner$ELBO_progress, 2)[[1]], 1) > tol) &&
-      #        (length(Traverse(learner, filterFun = function(node) node$isLeaf & !node$isLocked)) > 0) && (tail(tail(learner$ELBO_progress, 1)[[1]], 1) != Inf)) {
-      while ((mean(diff(sapply(tail(learner$ELBO_progress, 3), tail, 1))) > 10*tol) &&
-             (length(Traverse(learner, filterFun = function(node) node$isLeaf & !node$isLocked)) > 0) && (tail(tail(learner$ELBO_progress, 1)[[1]], 1) != Inf)) {
-        if (verbose) {
-          cat(paste("ELBO: ", round(learner$ELBO, 3), sep = ""))
-          cat("\n")
-        }
-        learner$convergeFitAll(tol = tol, update_sigma2 = update_sigma2, growMode = growMode, changeToConstant = changeToConstant, verbose = FALSE, maxit = maxit)
-      }
-
+      veb_boost_tree$convergeFitAll(tol = tol, update_sigma2 = update_sigma2, verbose = FALSE, maxit = maxit)
     }
 
-    learner$lockLearners(growMode = growMode, changeToConstant = changeToConstant) # change to constant at the end if needed
+    veb_boost_tree$lockLearners() # change to constant at the end if needed
     if (backfit) { # converge again, if backfitting
-      learner$convergeFit(tol, update_sigma2 = update_sigma2, verbose = FALSE, maxit = Inf)
+      veb_boost_tree$convergeFit(tol, update_sigma2 = update_sigma2, verbose = FALSE, maxit = Inf)
     }
 
-    if (!is.null(X_test)) {
-      learner$predict(X_test, 1)
-    }
-    return(learner)
+    veb_boost_tree$predict(1)
+
+    return(veb_boost_tree)
 
   } else { # else, multinomial case
     classes = sort(unique(Y))
     learner_multiclass = VEBBoostMultiClassLearner$new()
     learner_multiclass$Y = Y
-    learner_multiclass$mc.cores = mc.cores
     learner_multiclass$classes = classes
-    learner_multiclass$X = X
 
     learnerList = list()
     for (j in 1:length(classes)) { # add learners to learnerList
-      learner = initialize_veb_boost_tree(X = NULL, Y = 1 * (Y == classes[j]), k = k, d = d, fitFunctions = fitFunctions, predFunctions = predFunctions,
-                                constCheckFunctions = constCheckFunctions, family = "binomial")
-      learnerList = c(learnerList, learner)
+      classLearner = initialize_veb_boost_tree(learners = learners, Y = 1 * (Y == classes[j]), k = k, d = d, weights = weights, family = "binomial")
+      learnerList = c(learnerList, classLearner)
     }
-    names(learnerList) = paste0("learner", 0:(length(classes) - 1), sep = "")
-    learner_multiclass$addLearners(learnerList) # add learner list to multi-class clearner
+    names(learnerList) = paste0("classLearner_", classes, sep = "")
+    learner_multiclass$addclassLearners(learnerList) # add learner list to multi-class clearner
 
     # converge fit once
     learner_multiclass$convergeFit(tol = tol)
 
     # if growing tree, continue w/ growing tree & fitting to convergence
-    if (growTree) {
+    if (verbose) {
+      cat(paste("ELBO: ", round(learner_multiclass$ELBO, 3), sep = ""))
+      cat("\n")
+    }
+
+    learner_multiclass = learner_multiclass$convergeFitAll(tol = tol)
+
+    while ((abs(tail(tail(learner_multiclass$ELBO_progress, 1)[[1]], 1) - tail(tail(learner_multiclass$ELBO_progress, 2)[[1]], 1)) > tol) &&
+           (sum(sapply(learner_multiclass$classLearners, function(x) length(Traverse(x, filterFun = function(node) node$isLeaf & !node$isLocked)))) > 0)) {
       if (verbose) {
         cat(paste("ELBO: ", round(learner_multiclass$ELBO, 3), sep = ""))
         cat("\n")
       }
-
-      learner_multiclass = learner_multiclass$convergeFitAll(tol = tol, growMode = growMode, changeToConstant = changeToConstant)
-
-      while ((abs(tail(tail(learner_multiclass$ELBO_progress, 1)[[1]], 1) - tail(tail(learner_multiclass$ELBO_progress, 2)[[1]], 1)) > tol) &&
-             (sum(sapply(learner_multiclass$learners, function(x) length(Traverse(x, filterFun = function(node) node$isLeaf & !node$isLocked)))) > 0)) {
-        if (verbose) {
-          cat(paste("ELBO: ", round(learner_multiclass$ELBO, 3), sep = ""))
-          cat("\n")
-        }
-        learner_multiclass$convergeFitAll(tol = tol, growMode = growMode, changeToConstant = changeToConstant)
-      }
+      learner_multiclass$convergeFitAll(tol = tol)
     }
 
-    if (!is.null(X_test)) {
-      learner_multiclass$predict(X_test, 1)
-    }
+    learner_multiclass$predict(1)
 
     return(learner_multiclass)
   }
@@ -438,6 +385,14 @@ veb_boost = function(X, Y, X_test = NULL, fitFunctions, predFunctions, constChec
 #' 'max' scales by the maximum absolute value (so variables are on the [-1, +1] scale).
 #' 'NA' performs no scaling.
 #'
+#' @param growMode is a string for if the learner should be grown (or not)
+#' If \code{"+*"}, we grow mu_0 -> (mu_0 * mu_2) + mu_1
+#' If \code{"+"}, we grow mu_0 -> (mu_0 + mu_1)
+#' If \code{"*"}, we grow mu_0 -> (mu_0 * mu_1) (NOTE: Not recommended if we start with \code{k = 1})
+#' If \code{NULL}, we do not grow this learner
+#'
+#' @param changeToConstant is a logical for if constant fits should be changed to be constant
+#'
 #' @param max_log_prior_var is a scalar for the maximum that the estimated log-prior variance for each weak learner can be.
 #' The idea is that setting this to be small limits the "size" of each weak learner, similar-ish to the learning rate in boosting.
 #' The maximum allowed value is 35, which essentially allows the unrestricted MLE to be estimated.
@@ -467,7 +422,7 @@ veb_boost = function(X, Y, X_test = NULL, fitFunctions, predFunctions, constChec
 
 veb_boost_stumps = function(X, Y, X_test = NULL, include_linear = NULL, include_stumps = NULL,
                             num_cuts = ceiling(min(length(Y) / 5, max(100, sqrt(length(Y))))),
-                            use_quants = TRUE, scale_X = c("sd", "max", "NA"),
+                            use_quants = TRUE, scale_X = c("sd", "max", "NA"), growMode = "+*", changeToConstant = FALSE,
                             max_log_prior_var = 0, lin_prior_prob = 0.5, nthreads = ceiling(parallel::detectCores(logical = TRUE) / 2), ...) {
   # # Set higher priority for this process
   # psnice_init = tools::psnice()
@@ -514,6 +469,12 @@ veb_boost_stumps = function(X, Y, X_test = NULL, include_linear = NULL, include_
     stop("'use_quants' must be either TRUE or FALSE")
   }
   scale_X = match.arg(scale_X)
+  if (!is.null(growMode) && !(growMode %in% c("+*", "+", "*"))) {
+    stop("'$growMode' must be either NULL, or in c('+*', '+', '*')")
+  }
+  if (!(changeToConstant %in% c(TRUE, FALSE))) {
+    stop("'changeToConstant' must be either TRUE or FALSE")
+  }
   # Check max_log_prior_var
   if (!is.numeric(max_log_prior_var) || (length(max_log_prior_var) != 1)) {
     stop("'max_log_prior_var' must be a single number")
@@ -531,70 +492,15 @@ veb_boost_stumps = function(X, Y, X_test = NULL, include_linear = NULL, include_
     lin_prior_prob = min(1, max(0, lin_prior_prob))
   }
 
-  # # scale X if needed
-  # if (scale_X %in% c("max", "sd")) {
-  #   if (scale_X == "max") {
-  #     X_scale_factors = sparseMatrixStats::colMaxs(abs(X))
-  #   } else {
-  #     X_scale_factors = sparseMatrixStats::colSds(X)
-  #   }
-  #   if (inherits(X, "CsparseMatrix")) {
-  #     X@x = X@x / rep.int(X_scale_factors, diff(X@p))
-  #   } else {
-  #     X = sweep(X, 2, X_scale_factors, '/')
-  #   }
-  #   if (!is.null(X_test)) {
-  #     if (inherits(X_test, "CsparseMatrix")) {
-  #       X_test@x = X_test@x / rep.int(X_scale_factors, diff(X_test@p))
-  #     } else {
-  #       X_test = sweep(X_test, 2, X_scale_factors, '/')
-  #     }
-  #   }
-  # }
   scale_X = ifelse(scale_X == "sd", 1, ifelse(scale_X == "max", 2, 0))
-  # get which columns to include as linear and stumps terms, if not provided
-  # if (is.null(include_linear) | is.null(include_stumps)) {
-  #   n_unique = apply(X, 2, function(x) length(unique(x)))
-  #   if (is.null(include_linear)) {
-  #     include_linear = (n_unique > 1)
-  #   }
-  #   if (is.null(include_stumps)) {
-  #     include_stumps = (n_unique > 2)
-  #   }
-  # }
+
   if (!is.null(include_linear) && length(include_linear) == 1) {
     include_linear = rep(include_linear, p)
   }
   if (!is.null(include_stumps) && length(include_stumps) == 1) {
     include_stumps = rep(include_stumps, p)
   }
-  # # Make stumps matrix
-  # if (is.infinite(num_cuts) | all(!include_stumps)) {
-  #   cuts = NULL
-  # } else {
-  #   # if (length(num_cuts) == 1) {
-  #   #   num_cuts = rep(num_cuts, p)
-  #   # }
-  #   # cuts = rep(list(NULL), p)
-  #   # for (j in 1:p) {
-  #   #   if (is.finite(num_cuts[j])) {
-  #   #     if (use_quants) {
-  #   #       cuts[[j]] = quantile(X[, j], probs = qbeta(seq(from = 0, to = 1, length.out = num_cuts[j] + 2), .5, .5))[-c(1, num_cuts[j] + 2)]
-  #   #     } else {
-  #   #       cuts[[j]] = seq(from = min(X[, j]), to = max(X[, j]), length.out = num_cuts[j] + 2)[-c(1, num_cuts[j] + 2)]
-  #   #     }
-  #   #   }
-  #   # }
-  #   ppts = ppoints(num_cuts)
-  #   if (use_quants) {
-  #     col_quants = sparseMatrixStats::colQuantiles(X, probs = ppts)
-  #     # cuts = lapply(1:p, function(j) unique(col_quants[j, ]))
-  #     cuts = asplit(col_quants, 1)
-  #   } else {
-  #     col_ranges = sparseMatrixStats::colRanges(X)
-  #     cuts = lapply(1:p, function(j) col_ranges[j, 1]*(1 - ppts) + col_ranges[j, 2]*ppts)
-  #   }
-  # }
+
   if (is.infinite(num_cuts) | (!is.null(include_stumps) && all(!include_stumps))) {
     num_cuts = 0
   }
@@ -621,10 +527,11 @@ veb_boost_stumps = function(X, Y, X_test = NULL, include_linear = NULL, include_
     return(weighted_SER_cpp(X, Y, sigma2, init, max_log_prior_var, lin_prior_prob))
   }
 
+  stumps_learner = list(fitFunction = fitFnSusieStumps_maxlV, predFunction = predFnSusieStumps_cpp, constCheckFunction = constCheckFnSusieStumps,
+                        currentFit = NULL, X = X_stumps, X_test = X_test_stumps, growMode = growMode, changeToConstant = changeToConstant)
+
   # Run
-  veb.fit = veb_boost(X = X_stumps, Y = Y, X_test = X_test_stumps,
-                      fitFunctions = fitFnSusieStumps_maxlV, predFunctions = predFnSusieStumps_cpp, constCheckFunctions = constCheckFnSusieStumps,
-                      ...)
+  veb.fit = veb_boost(learner = list(stumps_learner), Y = Y, ...)
 
   return(veb.fit)
 }

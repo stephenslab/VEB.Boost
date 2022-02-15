@@ -165,3 +165,33 @@ arma::vec predFnSusieStumps_cpp(XPtr<stumpsmatrix::StumpsMatrix> xp_new, List cu
   stop("'moment' must be either 1 or 2");
 }
 
+
+// [[Rcpp::export]]
+arma::vec getAlphaByVar(XPtr<stumpsmatrix::StumpsMatrix> xp, List currentFit) { // combine all probability for same variable (i.e. combine linear and stumps probabilities)
+    arma::uvec ncol_vec = xp.get()->get_ncol_vec();
+    NumericVector alpha = currentFit["alpha"];
+    arma::uvec which_lin = arma::find(xp.get()->include_linear);
+    arma::uvec which_stumps = arma::find(xp.get()->include_stumps);
+    arma::vec alpha_comb(xp.get()->include_linear.size(), arma::fill::zeros);
+    unsigned int offset = 0; 
+    unsigned int j = 0;
+    bool any_lin = xp.get()->ncol_lin > 0;
+
+    if (any_lin) { // add linear probs, if needed
+        for (size_t k = 0; k < which_lin.size(); k++) {
+            alpha_comb[which_lin[k]] += alpha[offset];
+            offset++;
+        }
+        //alpha_comb.elem(which_lin) += alpha[Range(offset, offset + ncol_vec[j] - 1)];
+        //offset += ncol_vec[j];
+        j++;
+    }
+    
+    while (j < ncol_vec.size()) { // add stumps probs, if needed
+        alpha_comb[which_stumps[j - any_lin]] += sum(alpha[Range(offset, offset + ncol_vec[j] - 1)]);
+        offset += ncol_vec[j];
+        j++;
+    }
+
+    return alpha_comb;
+}

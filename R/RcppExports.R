@@ -25,3 +25,7 @@ predFnSusieStumps_cpp <- function(xp_new, currentFit, moment) {
     .Call(`_VEB_Boost_predFnSusieStumps_cpp`, xp_new, currentFit, moment)
 }
 
+getAlphaByVar <- function(xp, currentFit) {
+    .Call(`_VEB_Boost_getAlphaByVar`, xp, currentFit)
+}
+
