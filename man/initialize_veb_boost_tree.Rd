@@ -5,47 +5,36 @@
 \title{Initialize VEB-Boost Tree structure}
 \usage{
 initialize_veb_boost_tree(
-  X,
+  learners,
   Y,
   k = 1,
   d = 1,
-  fitFunctions = list(fitFnSusieStumps),
-  predFunctions = list(predFnSusieStumps),
-  constCheckFunctions = list(constCheckFnSusieStumps),
-  memoryEfficient = FALSE,
   weights = 1,
-  addMrAsh = FALSE,
-  R = NULL,
   family = c("gaussian", "binomial", "negative.binomial", "poisson.log1pexp",
     "aft.loglogistic", "ordinal.logistic"),
   exposure = NULL
 )
 }
 \arguments{
-\item{X}{is a prediction objects to be used}
+\item{learners}{is either a single "learner" object, or a list of k "learner" objects
+A learner object is comprised of:
+1. a fit function $fitFunction: (X, Y, sigma2, currentFit) -> newFit (where a fit is a list that must contain $mu1, $mu2, and $KL_div)
+2. a prediction function $predFunction: (X, fit, moment) -> posterior moment (1 or 2)
+3. a constant check function $constCheckFunction: (fit) -> (TRUE/FALSE) to check if a fit is essentially constant
+4. a current fit $currentFit: must contain $mu1 (first posterior moments), $mu2 (second posterior moments), and $KL_div (KL-divergence from q to prior) (can be NULL, at least to start)
+5. a predictor object $X (whatever the $fitFunction and $predFunction take in), used for training (can be NULL, e.g. if using constLearner)
+6. a predictor object $X_test (whatever the $fitFunction and $predFunction take in), used for testing (can be NULL)}
 
 \item{Y}{is a numeric vector response}
 
-\item{k}{is an intetger for how many terms are in the sum of nodes}
+\item{k}{is an integer, or a vector of integers of length \code{length(learners)}, for how many terms are in the sum of nodes (for each learner)}
 
-\item{d}{is either an integer, or an integer vector of length `k` for the multiplicative depth of each of the k terms}
-
-\item{fitFunctions}{is a list of length 1 or `k` of fitting functions to be used in
-each term on the sum of nodes}
-
-\item{predFunctions}{is a list of length 1 or `k` of prediction functions to be used in
-each term of the sum of nodes}
-
-\item{constCheckFunctions}{is a list of length 1 or `k` of constant check functions to be used in
-each term of the sum of nodes}
-
-\item{memoryEfficient}{is a flag for is we should be memory efficient at the cost of computational time}
+\item{d}{is either an integer, or an integer vector of length \code{k}, or a list of integer vectors of length \code{length(learners)}
+(each element either an integer, or a vector of length \code{k}) for the multiplicative depth of each of the k terms
+NOTE: This can be dangerous. For example, if the fit starts out too large, then entire branhces will be fit to be exactly
+zero. When this happens, we end up dividing by 0 in places, and this results in NAs, -Inf, etc. USE AT YOUR OWN RISK}
 
 \item{weights}{is a vector of the same length as Y weighting the observations. Relative weights are used and we take care of the scaling for you}
-
-\item{addMrAsh}{is a logical for if a mr.ash learner should be added to the VEB-Boost tree}
-
-\item{R}{is a correlation matrix for any random effect to be added to the VEB-Boost tree (if NULL, no random intercept is included)}
 
 \item{family}{is what family the response is}
 }

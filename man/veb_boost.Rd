@@ -5,21 +5,11 @@
 \title{Performs VEB-Boosting}
 \usage{
 veb_boost(
-  X,
+  learners,
   Y,
-  X_test = NULL,
-  fitFunctions,
-  predFunctions,
-  constCheckFunctions,
-  growTree = TRUE,
   k = 1,
   d = 1,
-  growMode = c("+*", "+", "*"),
   sigma2 = NULL,
-  memoryEfficient = FALSE,
-  addMrAsh = FALSE,
-  R = NULL,
-  changeToConstant = FALSE,
   family = c("gaussian", "binomial", "multinomial", "negative.binomial",
     "poisson.log1pexp", "aft.loglogistic", "ordinal.logistic"),
   weights = 1,
@@ -28,13 +18,24 @@ veb_boost(
   tol = nrow(as.matrix(Y))/10000,
   verbose = TRUE,
   maxit = Inf,
-  backfit = FALSE,
-  mc.cores = 1
+  backfit = FALSE
 )
 }
 \arguments{
-\item{X}{is a predictor object to be used.
-This object can take any form, so long as the user-supplied \code{fitFunctions} and \code{predFunctions} know how to use them.}
+\item{learners}{is either a single "learner" object, or a list of k "learner" objects
+A learner object is comprised of:
+1. a fit function $fitFunction: (X, Y, sigma2, currentFit) -> newFit (where a fit is a list that must contain $mu1, $mu2, and $KL_div)
+2. a prediction function $predFunction: (X, fit, moment) -> posterior moment (1 or 2)
+3. a constant check function $constCheckFunction: (fit) -> (TRUE/FALSE) to check if a fit is essentially constant
+4. a current fit $currentFit: must contain $mu1 (first posterior moments), $mu2 (second posterior moments), and $KL_div (KL-divergence from q to prior) (can be NULL, at least to start)
+5. a predictor object $X (whatever the $fitFunction and $predFunction take in), used for training (can be NULL, e.g. if using constLearner)
+6. a predictor object $X_test (whatever the $fitFunction and $predFunction take in), used for testing (can be NULL)
+7. a string $growMode for if the learner should be grown (or not)
+If \code{"+*"}, we grow mu_0 -> (mu_0 * mu_2) + mu_1
+If \code{"+"}, we grow mu_0 -> (mu_0 + mu_1)
+If \code{"*"}, we grow mu_0 -> (mu_0 * mu_1) (NOTE: Not recommended if we start with \code{k = 1})
+If \code{NULL}, we do not grow this learner
+8. a logical $changeToConstant for if the learner should be changed to constant if constCheckFunction evaluates to TRUE}
 
 \item{Y}{is a numeric response. For all but the 'aft.loglogistic' family, this should be an n-vector.
 For the 'aft.loglogistic' family, this should be an n x 2 matrix, with the first column being the left end-point of survival time
@@ -42,43 +43,16 @@ and the second column being the right end-point of survival time (used for inter
 In the case of left-censored data, the left end-point should be 'NA', and in the case of right-censored data, the right end-point should be 'NA'.
 If the observation is uncensored, both end-points should be equal to the observed survival time.}
 
-\item{X_test}{is an optional predictor object to be used as the testing data. Posterior mean response is saved in the output's field \code{$pred_mu1}.
-Alternatively, after running \code{veb_boost}, the user can call the \code{$predict} method on the output, with \code{X_test} as the first
-argument, and \code{1} as the second argument.}
+\item{k}{is an integer, or a vector of integers of length \code{length(learners)}, for how many terms are in the sum of nodes (for each learner)}
 
-\item{fitFunctions}{is either a single fitting function, or a list of length \code{k} of fitting functions to be used in
-each term on the sum of nodes}
-
-\item{predFunctions}{is either a single prediction function, or a list of length \code{k} of prediction functions to be used in
-each term of the sum of nodes}
-
-\item{constCheckFunctions}{is either a single constant check function, or a list of length \code{k} of constant check functions
-to be used in each term of the sum of nodes}
-
-\item{growTree}{is a logical for if we should grow the tree after convergence (TRUE), or only use the initial tree
-structure (FALSE)}
-
-\item{k}{is an integer for how many terms are in the sum of nodes}
-
-\item{d}{is either an integer, or an integer vector of length \code{k} for the multiplicative depth of each of the k terms
+\item{d}{is either an integer, or an integer vector of length \code{k}, or a list of integer vectors of length \code{length(learners)}
+(each element either an integer, or a vector of length \code{k}) for the multiplicative depth of each of the k terms
 NOTE: This can be dangerous. For example, if the fit starts out too large, then entire branhces will be fit to be exactly
 zero. When this happens, we end up dividing by 0 in places, and this results in NAs, -Inf, etc. USE AT YOUR OWN RISK}
-
-\item{growMode}{specifies how we grow the tree, either splitting nodes with addition, multiplication, or both
-If \code{+*}, we grow mu_0 -> (mu_0 * mu_2) + mu_1
-If \code{+}, we grow mu_0 -> (mu_0 + mu_1)
-If \code{*}, we grow mu_0 -> (mu_0 * mu_1) (NOTE: Not recommended if we start with \code{k = 1})}
 
 \item{sigma2}{is a scalar/n-vector specifying a fixed residual variance. If not NULL, then the residual variance will be
 fixed to this value/vector. If NULL, then it will be initialized and updated automatically.
 This should be left as NULL unless you really know what you're doing. For safety, this can only be not NULL if family is gaussian}
-
-\item{addMrAsh}{a logical flag for if a Mr.Ash fit should be added to the full tree to "regress out" linear effects}
-
-\item{R}{is a correlation matrix for any random effect to be added to the VEB-Boost tree (if NULL, no random intercept is included)}
-
-\item{changeToConstant}{is a flag for if, when the fit is found to be basically constant, if we should actually change
-the fitting function of that node to fit exactly a constant value}
 
 \item{family}{is what family the response is}
 
@@ -99,12 +73,6 @@ For AFT, exposure is 1 for non-censored observations, and 0 for right-censored o
 
 \item{backfit}{is a logical. If TRUE, then after the algorithm is done, it'll run through once more with the
 current tree and fit to convergence. Useful when, e.g. maxit = 1.}
-
-\item{mc.cores}{is the number of cores to use in mclapply, only used in family == "multinomial", and only
-supported on UNIX systems, where mclapply works. NOT CURRENTLY SUPPORTED}
-
-\item{extrapolateFunctions}{is either a single fit extrapolation function, or a list of length \code{k} of fit extrapolation functions
-to be used in each term of the sum of nodes}
 }
 \value{
 A \code{VEB_Boost_Node} object with the fit
@@ -120,47 +88,4 @@ A cyclic CAVI scheme is used, where we cycle over the leaf nodes and update the 
 to the posterior distribution at each node in turn.
 
 We start with the arithmetic tree structure \deqn{T(\mu_1, \dots, \mu_L) = \sum_{i=1}^k \prod_{j=1}^{d_k} \mu_{i, j}}
-}
-\examples{
-
-set.seed(1)
-n = 1000
-p = 1000
-X = matrix(runif(n * p), nrow = n, ncol = p)
-Y = rnorm(n, 5*sin(3*X[, 1]) + 2*(X[, 2]^2) + 3*X[, 3]*X[, 4])
-
-For input X and list \code{fit} returned from fitFn (encoding the variational posterior for b), computes either the 1st or 2nd
-predFn = function(X, fit, moment = c(1, 2)) {
-  # posterior moments of the response (depending on if \code{moment} is 1 or 2)
-  if (moment == 1) {
-    res = E_fit[Xb]
-  } else {
-    res = E_fit[(Xb)^2]
-  }
-  return(res)
-}
-
-For a given prior g(b), a function that approximates the posterior of b, q(b), using Variational Inference
-fitFn = function(X, Y, sigma2, init) {
-  fit = list(whatever is needed to encode the variational posterior)
-  KL_div = D_KL(q || g) # KL divergence from variational posterior to prior
-  mu1 = predFn(X, fit, 1)
-  mu2 = predFn(X, fit, 2)
-  # add mu1, mu2, and KL_div to the fit, MUST BE CALLED $mu1, $mu1, and $KL_div
-  fit$mu1 = mu1
-  fit$mu2 = mu2
-  fit$KL_div = KL_div
-  return(fit)
-}
-
-For a given \code{fit}, returns TRUE if the variational posterior is close enough to a constant, else FALSE
-constCheckFn = function(fit) {
-  if (fit is close to constant) {
-    return(TRUE)
-  } else {
-    return(FALSE)
-  }
-}
-veb.fit = veb_boost(X, Y, fitFn, predFn, constCheckFn, family = "gaussian")
-
 }

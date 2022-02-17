@@ -68,7 +68,7 @@ double nll(const double lV, const vec& tau_no_V, const vec& nu, const vec& prior
 //}
 
 // [[Rcpp::export]]
-List weighted_SER_cpp(XPtr<stumpsmatrix::StumpsMatrix> xp, arma::vec& Y, arma::vec& sigma2, Nullable<List> init = R_NilValue, double max_lV = 0, double lin_prior_prob = 0.5) {
+List weighted_SER_cpp(XPtr<stumpsmatrix::StumpsMatrix> xp, arma::vec& Y, arma::vec& sigma2, Nullable<List> init = R_NilValue, double max_lV = 0.0, double lin_prior_prob = 0.5, bool use_optim = true) {
   arma::vec s2 = arma::ones(Y.size());
   if (sigma2.size() == 1) {
     s2 = s2 * sigma2[0];
@@ -114,17 +114,22 @@ List weighted_SER_cpp(XPtr<stumpsmatrix::StumpsMatrix> xp, arma::vec& Y, arma::v
   //opt.set_upper(max_lV);
   //opt.minimize(nll, init_lV);
   //double lV = opt.par()[0];
-  Environment r_stats("package:stats");
-  Function r_optimize = r_stats["optimize"];
-  /*List optim_res = r_optim(Named("par") = lV_init, Named("fn") = InternalFunction(&nll), Named("gr") = InternalFunction(&gr), Named("tau_no_V") = tau_no_V, Named("nu") = nu,
-                                Named("prior_weights") = prior_weights, Named("method") = "L-BFGS-B", Named("lower") = -15, Named("upper") = max_lV);*/
-  List optim_res = r_optimize(Named("f") = InternalFunction(&nll),  Named("tau_no_V") = tau_no_V, Named("nu") = nu,
-      Named("prior_weights") = prior_weights, Named("lower") = -15.0, Named("upper") = max_lV);
-  arma::vec par = as<arma::vec>(optim_res["minimum"]);
-  double V = std::exp(par[0]);
-  //auto fn = [&, tau_no_V, nu, prior_weights](double lV) { return(nll(lV, tau_no_V, nu, prior_weights)); };
-  //std::pair<double, double> opt = boost::math::tools::brent_find_minima(fn, -15.0, max_lV, 8);
-  //double V = std::exp(opt.first);
+  double V;
+  if (use_optim || init.isNull() || !init.as().containsElementNamed("V")) { // if using Brent method to optimize for V....
+      Environment r_stats("package:stats");
+      Function r_optimize = r_stats["optimize"];
+      /*List optim_res = r_optim(Named("par") = lV_init, Named("fn") = InternalFunction(&nll), Named("gr") = InternalFunction(&gr), Named("tau_no_V") = tau_no_V, Named("nu") = nu,
+                                    Named("prior_weights") = prior_weights, Named("method") = "L-BFGS-B", Named("lower") = -15, Named("upper") = max_lV);*/
+      List optim_res = r_optimize(Named("f") = InternalFunction(&nll), Named("tau_no_V") = tau_no_V, Named("nu") = nu,
+          Named("prior_weights") = prior_weights, Named("lower") = -15.0, Named("upper") = max_lV);
+      arma::vec par = as<arma::vec>(optim_res["minimum"]);
+      V = std::exp(par[0]);
+      //auto fn = [&, tau_no_V, nu, prior_weights](double lV) { return(nll(lV, tau_no_V, nu, prior_weights)); };
+      //std::pair<double, double> opt = boost::math::tools::brent_find_minima(fn, -15.0, max_lV, 8);
+      //double V = std::exp(opt.first);
+  } else { // otherwise, using EM method
+      V = (double)init.as()["V"];
+  }
   
   arma::vec tau = tau_no_V + (1 / V);
 
@@ -136,6 +141,11 @@ List weighted_SER_cpp(XPtr<stumpsmatrix::StumpsMatrix> xp, arma::vec& Y, arma::v
   arma::vec mu = nu / tau;
   
   arma::vec sigma2_post = 1 / tau;
+
+  if (!use_optim) { // if using EM method for V, update now
+      V = arma::sum(alpha % (sigma2_post + arma::square(mu)));
+      V = std::max(std::exp(-15.0), std::min(V, std::exp(max_lV)));
+  }
   
   arma::vec beta_post_1 = alpha % mu;
   arma::vec beta_post_2 = alpha % (mu%mu + sigma2_post);

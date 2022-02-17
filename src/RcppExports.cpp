@@ -71,8 +71,8 @@ BEGIN_RCPP
 END_RCPP
 }
 // weighted_SER_cpp
-List weighted_SER_cpp(XPtr<stumpsmatrix::StumpsMatrix> xp, arma::vec& Y, arma::vec& sigma2, Nullable<List> init, double max_lV, double lin_prior_prob);
-RcppExport SEXP _VEB_Boost_weighted_SER_cpp(SEXP xpSEXP, SEXP YSEXP, SEXP sigma2SEXP, SEXP initSEXP, SEXP max_lVSEXP, SEXP lin_prior_probSEXP) {
+List weighted_SER_cpp(XPtr<stumpsmatrix::StumpsMatrix> xp, arma::vec& Y, arma::vec& sigma2, Nullable<List> init, double max_lV, double lin_prior_prob, bool use_optim);
+RcppExport SEXP _VEB_Boost_weighted_SER_cpp(SEXP xpSEXP, SEXP YSEXP, SEXP sigma2SEXP, SEXP initSEXP, SEXP max_lVSEXP, SEXP lin_prior_probSEXP, SEXP use_optimSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -82,7 +82,8 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< Nullable<List> >::type init(initSEXP);
     Rcpp::traits::input_parameter< double >::type max_lV(max_lVSEXP);
     Rcpp::traits::input_parameter< double >::type lin_prior_prob(lin_prior_probSEXP);
-    rcpp_result_gen = Rcpp::wrap(weighted_SER_cpp(xp, Y, sigma2, init, max_lV, lin_prior_prob));
+    Rcpp::traits::input_parameter< bool >::type use_optim(use_optimSEXP);
+    rcpp_result_gen = Rcpp::wrap(weighted_SER_cpp(xp, Y, sigma2, init, max_lV, lin_prior_prob, use_optim));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -117,7 +118,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_VEB_Boost_make_stumps_matrix_sp_cpp", (DL_FUNC) &_VEB_Boost_make_stumps_matrix_sp_cpp, 7},
     {"_VEB_Boost_make_stumps_test_matrix_cpp", (DL_FUNC) &_VEB_Boost_make_stumps_test_matrix_cpp, 2},
     {"_VEB_Boost_make_stumps_test_matrix_sp_cpp", (DL_FUNC) &_VEB_Boost_make_stumps_test_matrix_sp_cpp, 2},
-    {"_VEB_Boost_weighted_SER_cpp", (DL_FUNC) &_VEB_Boost_weighted_SER_cpp, 6},
+    {"_VEB_Boost_weighted_SER_cpp", (DL_FUNC) &_VEB_Boost_weighted_SER_cpp, 7},
     {"_VEB_Boost_predFnSusieStumps_cpp", (DL_FUNC) &_VEB_Boost_predFnSusieStumps_cpp, 3},
     {"_VEB_Boost_getAlphaByVar", (DL_FUNC) &_VEB_Boost_getAlphaByVar, 2},
     {NULL, NULL, 0}

@@ -13,9 +13,12 @@ veb_boost_stumps(
   num_cuts = ceiling(min(length(Y)/5, max(100, sqrt(length(Y))))),
   use_quants = TRUE,
   scale_X = c("sd", "max", "NA"),
+  growMode = "+*",
+  changeToConstant = FALSE,
   max_log_prior_var = 0,
+  use_optim = TRUE,
   lin_prior_prob = 0.5,
-  nthreads = ceiling(parallel::detectCores(logical = FALSE)/2),
+  nthreads = ceiling(parallel::detectCores(logical = TRUE)/2),
   ...
 )
 }
@@ -48,10 +51,21 @@ cut points should be evenly spaced in the range of the variable (`use_quants = F
 'max' scales by the maximum absolute value (so variables are on the [-1, +1] scale).
 'NA' performs no scaling.}
 
+\item{growMode}{is a string for if the learner should be grown (or not)
+If \code{"+*"}, we grow mu_0 -> (mu_0 * mu_2) + mu_1
+If \code{"+"}, we grow mu_0 -> (mu_0 + mu_1)
+If \code{"*"}, we grow mu_0 -> (mu_0 * mu_1) (NOTE: Not recommended if we start with \code{k = 1})
+If \code{NULL}, we do not grow this learner}
+
+\item{changeToConstant}{is a logical for if constant fits should be changed to be constant}
+
 \item{max_log_prior_var}{is a scalar for the maximum that the estimated log-prior variance for each weak learner can be.
 The idea is that setting this to be small limits the "size" of each weak learner, similar-ish to the learning rate in boosting.
 The maximum allowed value is 35, which essentially allows the unrestricted MLE to be estimated.
 The minimum allowed value is -5.}
+
+\item{use_optim}{is a logical. If TRUE, then the prior variance is optimized using the Brent method.
+If FALSE, then a single EM step is taken to optimize over V}
 
 \item{lin_prior_prob}{is a number between 0 and 1 that gives the prior probability that the effect variable is a linear term.
 This means that (1 - lin_prior_prob) is the probability that the effect variable is a stump term.
@@ -78,5 +92,6 @@ p = 1000
 X = matrix(runif(n * p), nrow = n, ncol = p)
 Y = rnorm(n, 5*sin(3*X[, 1]) + 2*(X[, 2]^2) + 3*X[, 3]*X[, 4])
 veb.stumps.fit = veb_boost_stumps(X, Y, include_linear = TRUE, family = "gaussian")
+
 
 }

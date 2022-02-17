@@ -278,7 +278,8 @@ VEBBoostNode <- R6Class(
             add_node = VEBBoostNode$new(learner_name, learner = base_learner$learner)
             add_node$learner$currentFit$mu1 = (add_node$learner$currentFit$mu1 * 0) + (base_learner$learner$growMode == "*" * 1)
             add_node$learner$currentFit$mu2 = (add_node$learner$currentFit$mu2 * 0) + (base_learner$learner$growMode == "*" * 1)
-            add_node$learner$currentFit$KL_div = 0
+            # add_node$learner$currentFit$KL_div = 0
+            add_node$learner$currentFit = list(mu1 = add_node$learner$currentFit$mu1, mu2 = add_node$learner$currentFit$mu2, KL_div = 0)
             base_learner$AddSiblingVEB(add_node, base_learner$learner$growMode, combine_name)
           } else {
             learner_name = paste("mu_", base_learner$root$leafCount, sep = '')
@@ -287,7 +288,8 @@ VEBBoostNode <- R6Class(
             add_node = VEBBoostNode$new(learner_name, learner = base_learner$learner)
             add_node$learner$currentFit$mu1 = add_node$learner$currentFit$mu1 * 0
             add_node$learner$currentFit$mu2 = add_node$learner$currentFit$mu2 * 0
-            add_node$learner$currentFit$KL_div = 0
+            # add_node$learner$currentFit$KL_div = 0
+            add_node$learner$currentFit = list(mu1 = add_node$learner$currentFit$mu1, mu2 = add_node$learner$currentFit$mu2, KL_div = 0)
             base_learner$AddSiblingVEB(add_node, "+", combine_name)
 
             learner_name = paste("mu_", base_learner$root$leafCount, sep = '')
@@ -296,6 +298,8 @@ VEBBoostNode <- R6Class(
             mult_node = VEBBoostNode$new(learner_name, learner = add_node$learner)
             mult_node$learner$currentFit$mu1 = mult_node$learner$currentFit$mu1 + 1
             mult_node$learner$currentFit$mu2 = mult_node$learner$currentFit$mu2 + 1
+            # mult_node$learner$currentFit$KL_div = 0
+            mult_node$learner$currentFit = list(mu1 = mult_node$learner$currentFit$mu1, mu2 = mult_node$learner$currentFit$mu2, KL_div = 0)
             base_learner$children[[1]]$AddSiblingVEB(mult_node, "*", combine_name)
           }
         }

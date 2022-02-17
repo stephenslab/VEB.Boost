@@ -34,16 +34,16 @@
 #' In the case of left-censored data, the left end-point should be 'NA', and in the case of right-censored data, the right end-point should be 'NA'.
 #' If the observation is uncensored, both end-points should be equal to the observed survival time.
 #'
-#' @param k is an integer for how many terms are in the sum of nodes
+#' @param k is an integer, or a vector of integers of length \code{length(learners)}, for how many terms are in the sum of nodes (for each learner)
 #'
-#' @param d is either an integer, or an integer vector of length \code{k} for the multiplicative depth of each of the k terms
+#' @param d is either an integer, or an integer vector of length \code{k}, or a list of integer vectors of length \code{length(learners)}
+#' (each element either an integer, or a vector of length \code{k}) for the multiplicative depth of each of the k terms
 #' NOTE: This can be dangerous. For example, if the fit starts out too large, then entire branhces will be fit to be exactly
 #' zero. When this happens, we end up dividing by 0 in places, and this results in NAs, -Inf, etc. USE AT YOUR OWN RISK
 #'
 #' @param sigma2 is a scalar/n-vector specifying a fixed residual variance. If not NULL, then the residual variance will be
 #' fixed to this value/vector. If NULL, then it will be initialized and updated automatically.
 #' This should be left as NULL unless you really know what you're doing. For safety, this can only be not NULL if family is gaussian
-#'
 #'
 #' @param family is what family the response is
 #'
@@ -121,6 +121,8 @@ veb_boost = function(learners, Y, k = 1, d = 1, sigma2 = NULL,
                      weights = 1, scaleWeights = TRUE, exposure = NULL, tol = nrow(as.matrix(Y)) / 10000, verbose = TRUE, maxit = Inf, backfit = FALSE) {
 
   ### Check Inputs ###
+  # Family
+  family = match.arg(family)
   if (family == "multinomial") {
     Y = as.character(Y)
   }
@@ -139,10 +141,13 @@ veb_boost = function(learners, Y, k = 1, d = 1, sigma2 = NULL,
     }
   }
   # Scalars
-  if ((k < 1) || (k %% 1 != 0)) {
+  if (any(k < 1) || any(k %% 1 != 0)) {
     stop("'k' must be a positive whole number")
   }
-  if ((d < 1) || (d %% 1 != 0)) {
+  if (!(length(k) %in% c(1, length(learners)))) {
+    stop("'k' must be of length 1 or 'length(learners)'")
+  }
+  if (any(unlist(d) < 1) || any(unlist(d) %% 1 != 0)) {
     stop("'d' must be a positive whole number")
   }
   # Logical Flags
@@ -156,8 +161,8 @@ veb_boost = function(learners, Y, k = 1, d = 1, sigma2 = NULL,
     stop("'scaleWeights' must be either TRUE or FALSE")
   }
   # learner object
-  if ((class(learners) != "list") || !(length(learners) %in% c(1, k))) {
-    stop("'learners' must be a list of length 1 or k")
+  if (class(learners) != "list") {
+    stop("'learners' must be a list of learners")
   }
   for (learner in learners) {
     if (class(learner$fitFunction) != "function") {
@@ -173,8 +178,6 @@ veb_boost = function(learners, Y, k = 1, d = 1, sigma2 = NULL,
       stop("'$growMode' must be either NULL, or in c('+*', '+', '*')")
     }
   }
-  # Family
-  family = match.arg(family)
   # weights
   if (any(weights <= 0) || any(is.na(weights))) {
     stop("All weights must be positive and not missing")
@@ -398,6 +401,9 @@ veb_boost = function(learners, Y, k = 1, d = 1, sigma2 = NULL,
 #' The maximum allowed value is 35, which essentially allows the unrestricted MLE to be estimated.
 #' The minimum allowed value is -5.
 #'
+#' @param use_optim is a logical. If TRUE, then the prior variance is optimized using the Brent method.
+#' If FALSE, then a single EM step is taken to optimize over V
+#'
 #' @param lin_prior_prob is a number between 0 and 1 that gives the prior probability that the effect variable is a linear term.
 #' This means that (1 - lin_prior_prob) is the probability that the effect variable is a stump term.
 #' Within linear terms and stump terms, all variables have the same prior variance.
@@ -423,7 +429,7 @@ veb_boost = function(learners, Y, k = 1, d = 1, sigma2 = NULL,
 veb_boost_stumps = function(X, Y, X_test = NULL, include_linear = NULL, include_stumps = NULL,
                             num_cuts = ceiling(min(length(Y) / 5, max(100, sqrt(length(Y))))),
                             use_quants = TRUE, scale_X = c("sd", "max", "NA"), growMode = "+*", changeToConstant = FALSE,
-                            max_log_prior_var = 0, lin_prior_prob = 0.5, nthreads = ceiling(parallel::detectCores(logical = TRUE) / 2), ...) {
+                            max_log_prior_var = 0, use_optim = TRUE, lin_prior_prob = 0.5, nthreads = ceiling(parallel::detectCores(logical = TRUE) / 2), ...) {
   # # Set higher priority for this process
   # psnice_init = tools::psnice()
   # on.exit({tools::psnice(tools::psnice(value = psnice_init))})
@@ -483,6 +489,9 @@ veb_boost_stumps = function(X, Y, X_test = NULL, include_linear = NULL, include_
     warning("Restricting 'max_log_prior_var' to be in the range [-5, 35]")
     max_log_prior_var = min(35, max(-5, max_log_prior_var))
   }
+  if (!(use_optim %in% c(TRUE, FALSE))) {
+    stop("'use_optim' must be either TRUE or FALSE")
+  }
   # Check lin_prior_prob
   if (!is.numeric(lin_prior_prob) || (length(lin_prior_prob) != 1)) {
     stop("'lin_prior_prob' must be a single number")
@@ -524,7 +533,7 @@ veb_boost_stumps = function(X, Y, X_test = NULL, include_linear = NULL, include_
   }
 
   fitFnSusieStumps_maxlV = function(X, Y, sigma2, init) {
-    return(weighted_SER_cpp(X, Y, sigma2, init, max_log_prior_var, lin_prior_prob))
+    return(weighted_SER_cpp(X, Y, sigma2, init, max_log_prior_var, lin_prior_prob, use_optim))
   }
 
   stumps_learner = list(fitFunction = fitFnSusieStumps_maxlV, predFunction = predFnSusieStumps_cpp, constCheckFunction = constCheckFnSusieStumps,

@@ -17,8 +17,8 @@ make_stumps_test_matrix_sp_cpp <- function(X, SM_in) {
     .Call(`_VEB_Boost_make_stumps_test_matrix_sp_cpp`, X, SM_in)
 }
 
-weighted_SER_cpp <- function(xp, Y, sigma2, init = NULL, max_lV = 0, lin_prior_prob = 0.5) {
-    .Call(`_VEB_Boost_weighted_SER_cpp`, xp, Y, sigma2, init, max_lV, lin_prior_prob)
+weighted_SER_cpp <- function(xp, Y, sigma2, init = NULL, max_lV = 0.0, lin_prior_prob = 0.5, use_optim = TRUE) {
+    .Call(`_VEB_Boost_weighted_SER_cpp`, xp, Y, sigma2, init, max_lV, lin_prior_prob, use_optim)
 }
 
 predFnSusieStumps_cpp <- function(xp_new, currentFit, moment) {

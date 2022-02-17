@@ -1,6 +1,6 @@
 Package: VEB.Boost
 Title: This package provides the functionality to perform VEB-Boosting.
-Version: 0.0.0.9029
+Version: 0.0.0.9030
 Authors@R: 
     person(given = "Andrew",
            family = "Goldstein",
