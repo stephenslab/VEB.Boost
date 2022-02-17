@@ -13,7 +13,7 @@ weighted.mr.ash = function(X, Y, sigma2, init = NULL) {
   # weighted center to deal with intercept
   Y_avg = sum(Y * w)
   Y_cent = Y - Y_avg
-  X_avg = compute_Xty(X, w) # vector of weighted avg of columns of X
+  X_avg = crossprod(X, w) # vector of weighted avg of columns of X
   X_cent = sweep(X, MARGIN = 2, STATS = X_avg, FUN = '-')
 
   # scale rows and response by 1/sqrt(sigma2) so we are in homoskedastic case
@@ -36,7 +36,7 @@ weighted.mr.ash = function(X, Y, sigma2, init = NULL) {
   beta_post_2 = tcrossprod(beta_post_1)
   diag(beta_post_2) = rowSums(mr.ash.post$phi * (mr.ash.post$s2 + mr.ash.post$m^2))
 
-  Xb_post = compute_Xb(X, beta_post_1)
+  Xb_post = X %*% beta_post_1
   X_avg_b_post = sum(X_avg * beta_post_1)
 
   intercept = as.numeric(Y_avg - X_avg_b_post)
@@ -57,7 +57,7 @@ weighted.mr.ash = function(X, Y, sigma2, init = NULL) {
 }
 
 fitFn.mr.ash = function(X, Y, sigma2, init) {
-  return(weighted.mr.ash(X[[1]], Y, sigma2, init))
+  return(weighted.mr.ash(X, Y, sigma2, init))
 }
 
 
@@ -65,12 +65,12 @@ fitFn.mr.ash = function(X, Y, sigma2, init) {
 predFn.mr.ash = function(X_new, currentFit, moment = c(1, 2)) {
   beta_post_1 = rowSums(currentFit$mr.ash.post$phi * currentFit$mr.ash.post$m)
   if (moment == 1) {
-    return(currentFit$intercept + compute_Xb(X_new[[1]], beta_post_1))
+    return(currentFit$intercept + (X_new %*% beta_post_1))
   } else if (moment == 2) {
     beta_post_2 = tcrossprod(beta_post_1)
     diag(beta_post_2) = rowSums(currentFit$mr.ash.post$phi * (currentFit$mr.ash.post$s2 + currentFit$mr.ash.post$m^2))
     X_new_cent = sweep(X_new[[1]], MARGIN = 2, STATS = currentFit$X_avg, FUN = '-')
-    return(currentFit$Y_avg^2 + 2*currentFit$Y_avg*(compute_Xb(X_new[[1]], beta_post_1) - sum(currentFit$X_avg * beta_post_1)) + apply(X_new_cent, MARGIN = 1, function(x) quad.form(beta_post_2, x)))
+    return(currentFit$Y_avg^2 + 2*currentFit$Y_avg*(X_new %*% beta_post_1) - sum(currentFit$X_avg * beta_post_1) + apply(X_new_cent, MARGIN = 1, function(x) quad.form(beta_post_2, x)))
   } else {
     stop("`moment` must be either 1 or 2")
   }
