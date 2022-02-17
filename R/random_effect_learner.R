@@ -109,7 +109,7 @@ constCheckFnRandomEffect = function(currentFit) {
 }
 
 # constant learner
-#' @keywords internal
+#' @export
 randomEffectLearner = list(
   fitFunction = fitFnRandomEffect,
   predFunction = predFnRandomEffect,

@@ -83,7 +83,7 @@ constCheckFn.mr.ash = function(currentFit) {
 }
 
 # mr.ash learner
-#' @keywords internal
+#' @export
 mrAshLearner = list(
   fitFunction = fitFn.mr.ash,
   predFunction = predFn.mr.ash,
