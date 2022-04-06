@@ -26,7 +26,7 @@
 #' @param family is what family the response is
 
 initialize_veb_boost_tree = function(learners, Y, k = 1, d = 1, weights = 1,
-                                     family = c("gaussian", "binomial", "negative.binomial", "poisson.log1pexp", "aft.loglogistic", "ordinal.logistic"), exposure = NULL) {
+                                     family = c("gaussian", "binomial", "negative.binomial", "poisson.log1pexp", "aft.loglogistic", "ordinal.logistic", "multinomial.titsias"), exposure = NULL, my_class_index = NULL) {
   family = match.arg(family)
   if (length(k) == 1) {
     k = rep(k, length(learners))
@@ -88,6 +88,7 @@ initialize_veb_boost_tree = function(learners, Y, k = 1, d = 1, weights = 1,
   # also add family and response
   #veb_boost_learner$family = family
   veb_boost_learner$Y = Y
+  veb_boost_learner$my_class_index = my_class_index
   #veb_boost_learner$weights = weights
   for (i in 1:ceiling(log2(k[1]))) {
     base_learners = veb_boost_learner$leaves
@@ -185,6 +186,7 @@ initialize_veb_boost_tree = function(learners, Y, k = 1, d = 1, weights = 1,
       veb_boost_learner$AddChildNode(veb_boost_cur)
       veb_boost_learner$AddChildNode(veb_boost_learner_kk)
       veb_boost_learner$Y = Y
+      veb_boost_learner$my_class_index = my_class_index
       veb_boost_learner$updateMoments()
       veb_boost_cur = veb_boost_learner
     }

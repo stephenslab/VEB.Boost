@@ -11,6 +11,8 @@ VEBBoostMultiClassLearner <- R6::R6Class(
   public = list(
     classLearners = list(), # list of K learners, each is a VEBBoostNode object
 
+    family = "multinomial.bouchard", # either "multinomial.bouchard" or "multinomial.titsias"
+
     classes = NULL,
 
     alpha = 0,
@@ -54,7 +56,9 @@ VEBBoostMultiClassLearner <- R6::R6Class(
         # for (learner in self$classLearners) {
         #   learner$ensemble = self
         # }
-        self$updateAlpha()
+        if (self$family == "multinomial.bouchard") {
+          self$updateAlpha()
+        }
 
         i = i + 1
         if (i > length(ELBOs)) { # double size of ELBOs for efficiency rather than making it bigger each iteration
@@ -177,24 +181,36 @@ VEBBoostMultiClassLearner <- R6::R6Class(
       if (!missing(value)) {
         stop("`$ELBO` cannot be modified directly", call. = FALSE)
       }
-      K = length(self$classLearners)
-      d = self$d
-      a = self$alpha
-      if (length(a) == 1) {
-        a = rep(a,  length(self$Y))
+      if (self$family == "multinomial.bouchard") {
+        K = length(self$classLearners)
+        d = self$d
+        a = self$alpha
+        if (length(a) == 1) {
+          a = rep(a,  length(self$Y))
+        }
+        b = .5 - (a * d)
+        ELBO = 0
+        for (classLearner in self$classLearners) {
+          ELBO = ELBO + sum(classLearner$root$mu1 * classLearner$root$raw_Y)
+        }
+        xi = self$xi
+        c = ((1 - K/2) * a) - (rowSums(xi) / 2) + (rowSums(d * (a^2 - xi^2)) / 2) + rowSums(log(1 + exp(xi)))
+        m1 = self$mu1
+        m2 = self$mu2
+        ELBO = ELBO - (sum(m2 * d) / 2) - sum(m1 * b) - sum(c)
+        ELBO = ELBO - self$KL_div
+        return(ELBO)
+      } else if (self$family == "multinomial.titsias") {
+        K = length(self$classLearners)
+        xi = self$xi
+        mu1 = self$mu1
+        mu2 = self$mu2
+        ELBO = .5 * (K*sum(mu1[cbind(1:nrow(mu1), attr(self$Y, 'which'))]) - sum(mu1)) - sum(apply(-xi, 2, log1pexp), na.rm = TRUE) - .5*sum(xi, na.rm = TRUE)
+        ELBO = ELBO - self$KL_div
+        return(ELBO)
+      } else {
+        stop("`$family` must be either 'multinomial.bouchard' or 'multinomial.titsias")
       }
-      b = .5 - (a * d)
-      ELBO = 0
-      for (classLearner in self$classLearners) {
-        ELBO = ELBO + sum(classLearner$root$mu1 * classLearner$root$raw_Y)
-      }
-      xi = self$xi
-      c = ((1 - K/2) * a) - (rowSums(xi) / 2) + (rowSums(d * (a^2 - xi^2)) / 2) + rowSums(log(1 + exp(xi)))
-      m1 = self$mu1
-      m2 = self$mu2
-      ELBO = ELBO - (sum(m2 * d) / 2) - sum(m1 * b) - sum(c)
-      ELBO = ELBO - self$KL_div
-      return(ELBO)
     },
 
     xi = function(value) { # optimal variational parameters, set to +sqrt(mu2)
@@ -202,7 +218,23 @@ VEBBoostMultiClassLearner <- R6::R6Class(
         stop("`$xi` cannot be modified directly", call. = FALSE)
       }
       #xi = sapply(self$classLearners, function(x) sqrt(x$root$mu2 + x$root$alpha^2 - 2*x$root$alpha*x$root$mu1))
-      return(sapply(self$classLearners, function(x) x$xi))
+      if (self$family == "multinomial.bouchard") {
+        return(sapply(self$classLearners, function(x) x$xi))
+      } else if (self$family == "multinomial.titsias") {
+        mu1 = self$mu1
+        mu2 = self$mu2
+        # xi = do.call(rbind, lapply(1:nrow(mu1), function(i) {
+        #   res = mu2[i, attr(self$Y, 'which')[i]] - 2*mu1[i, attr(self$Y, 'which')[i]]*mu1[i, ] + mu2[i, ]
+        #   res[attr(self$Y, 'which')[i]] = NA
+        #   return(res)
+        # }))
+        xi = matrix(mu2[cbind(1:nrow(mu2), attr(self$Y, 'which'))], nrow = nrow(mu2), ncol = ncol(mu2), byrow = FALSE) -
+          2*matrix(mu1[cbind(1:nrow(mu2), attr(self$Y, 'which'))], nrow = nrow(mu1), ncol = ncol(mu1), byrow = FALSE)*mu1 + mu2
+        xi[cbind(1:nrow(xi), attr(self$Y, 'which'))] = NA
+        return(sqrt(xi))
+      } else {
+        stop("`$family` must be either 'multinomial.bouchard' or 'multinomial.titsias")
+      }
     },
 
     d = function(value) { # d == 1/xi * (g(xi) - .5), n x K matrix
@@ -212,7 +244,17 @@ VEBBoostMultiClassLearner <- R6::R6Class(
       # g_xi = g(self$xi) # matrix of g(xi_i,k), pre-compute once
       # d = ((g_xi - .5) / self$xi) # matrix of (g(xi_i,k) - .5) / xi_i,k, pre-compute once
       # d[self$xi == 0] = .25 # case of 0/0 (e.g. x_i is all 0), use L'Hopital
-      return(sapply(self$classLearners, function(x) x$d))
+      if (self$family == "multinomial.bouchard") {
+        return(sapply(self$classLearners, function(x) x$d))
+      } else if (self$family == "multinomial.titsias") {
+        xi = self$xi
+        g_xi = ilogit(xi) # matrix of g(xi_i,k), pre-compute once
+        d = ((g_xi - .5) / xi) # matrix of (g(xi_i,k) - .5) / xi_i,k, pre-compute once
+        d[xi == 0] = .25 # case of 0/0 (e.g. x_i is all 0), use L'Hopital
+        return(d)
+      } else {
+        stop("`$family` must be either 'multinomial.bouchard' or 'multinomial.titsias")
+      }
     },
 
     pred_mu1 = function(value) { # predicted first moment given new data

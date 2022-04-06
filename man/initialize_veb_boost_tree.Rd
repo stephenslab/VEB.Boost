@@ -11,8 +11,9 @@ initialize_veb_boost_tree(
   d = 1,
   weights = 1,
   family = c("gaussian", "binomial", "negative.binomial", "poisson.log1pexp",
-    "aft.loglogistic", "ordinal.logistic"),
-  exposure = NULL
+    "aft.loglogistic", "ordinal.logistic", "multinomial.titsias"),
+  exposure = NULL,
+  my_class_index = NULL
 )
 }
 \arguments{

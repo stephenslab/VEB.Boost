@@ -8,12 +8,13 @@ veb_boost_stumps(
   X,
   Y,
   X_test = NULL,
+  learners = NULL,
   include_linear = NULL,
   include_stumps = NULL,
   num_cuts = ceiling(min(length(Y)/5, max(100, sqrt(length(Y))))),
   use_quants = TRUE,
   scale_X = c("sd", "max", "NA"),
-  growMode = "+*",
+  growMode = c("+*", "+", "*", "NA"),
   changeToConstant = FALSE,
   max_log_prior_var = 0,
   use_optim = TRUE,
@@ -28,6 +29,8 @@ veb_boost_stumps(
 \item{Y}{is a numeric vector response}
 
 \item{X_test}{is an optional (m X p) matrix to be used as the testing data. Posterior mean response is saved in the output's field \code{$pred_mu1}}
+
+\item{learners}{is a list of other learners to be used in \code{\link{veb_boost}}}
 
 \item{include_linear}{is a logical of length 1 or p specifying which columns of X we should include as linear terms.
 If the length is 1, this value gets recycled for all columns of X.
@@ -55,7 +58,7 @@ cut points should be evenly spaced in the range of the variable (`use_quants = F
 If \code{"+*"}, we grow mu_0 -> (mu_0 * mu_2) + mu_1
 If \code{"+"}, we grow mu_0 -> (mu_0 + mu_1)
 If \code{"*"}, we grow mu_0 -> (mu_0 * mu_1) (NOTE: Not recommended if we start with \code{k = 1})
-If \code{NULL}, we do not grow this learner}
+If \code{"NA"}, we do not grow this learner}
 
 \item{changeToConstant}{is a logical for if constant fits should be changed to be constant}
 

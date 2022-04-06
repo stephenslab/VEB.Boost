@@ -88,3 +88,114 @@ stumpsVariableImportance = function(veb_fit, method = c("pip", "sum"), scale_by_
   }
   return(a)
 }
+
+
+#' Performs a prediction using a `veb_boost` fit and supplied X_test objects
+#'
+#' This function performs a prediction using a `veb_boost` fit and supplied X_test objects.
+#' If the `veb_boost` object was created with `L` different learners, then `X_test_list` must be
+#' a list of length `L`, in the order corresponding to the learners
+#'
+#' @details
+#' This function takes in a return object from \code{\link{veb_boost}} and a list of predictor objects and calculates
+#' the desired posterior moments.
+#'
+#' @param veb_fit is the fitted object from \code{\link{veb_boost}}
+#'
+#' @param X_test_list is a list of predictor objects. This must be of the same length as the list of learners used
+#' in fitting `veb_fit`
+#'
+#' @param moment is the desired posterior moment to calculate. This can be either 1, 2, or c(1, 2)
+#'
+#' @return a vector of first posterior moments, second posterior moments, or a matrix whose columns are the first and
+#' second posterior moments respectively (depending on the supplied `moment`)
+#'
+#' @export
+predict_veb_boost = function(veb_fit, X_test_list, moment = c(1, 2)) {
+  if (!identical(moment, 1) && !identical(moment, 2) && !identical(moment, c(1, 2))) {
+    stop("'moment' must be either 1, 2, or c(1, 2)")
+  }
+  if (class(X_test_list) != "list") {
+    stop("'X_test_list' must be a list")
+  }
+  combine_full_nodes = list()
+  # first, clear existing X_test values and get a list of all nodes that combine different types of learners
+  veb_fit$Do(function(x) {
+    x$learner$X_test = NULL
+    if (grepl("combine_full", x$name)) {
+      combine_full_nodes <<- c(combine_full_nodes, x)
+    }
+  }, traversal = 'post-order')
+  # check the number of predictor objects matches
+  if (length(combine_full_nodes) + 1 != length(X_test_list)) {
+    stop(paste("'X_test_list' is of length ", length(X_test_list), ", but should be of length ", length(combine_full_nodes) + 1, sep = ""))
+  }
+  # now, add new X_test values
+  if (length(combine_full_nodes) == 0) {
+    try({veb_fit$root$learner$X_test = X_test_list[[1]]}, silent = TRUE)
+  } else {
+    for (node in combine_full_nodes) {
+      j = as.numeric(strsplit(node$name, "combine_full_")[[1]][2]) + 1
+      try({node$children[[1]]$learner$X_test = X_test_list[[j]]}, silent = TRUE)
+      try({node$children[[2]]$learner$X_test = X_test_list[[j + 1]]}, silent = TRUE)
+    }
+  }
+  # now, predict and return
+  veb_fit$predict(moment)
+  if (identical(moment, 1)) {
+    return(veb_fit$pred_mu1)
+  } else if (identical(moment, 2)) {
+    return(veb_fit$pred_mu2)
+  } else {
+    return(cbind(veb_fit$pred_mu1, veb_fit$pred_mu2))
+  }
+}
+
+
+#' Performs a prediction using a `veb_boost_stumps` fit and supplied X_test objects (for non-stumps learners)
+#'
+#' This function performs a prediction using a `veb_boost_stumps` fit and supplied X_test objects.
+#' If the `veb_boost_stumps` object was created with `L` different learners, then `X_test_list` must be
+#' a list of length `L-1`, in the order corresponding to the learners. The last predictor object is made
+#' using the stumps matrix from the stumps learners
+#'
+#' @details
+#' This function takes in a return object from \code{\link{veb_boost_stumps}} and a list of predictor objects and calculates
+#' the desired posterior moments.
+#'
+#' @param veb_fit_stumps is the fitted object from \code{\link{veb_boost_stumps}}
+#'
+#' @param X_test is a matrix to be used when making the new stumps matrix for the stumps learners
+#'
+#' @param X_test_list is a list of predictor objects. This must be of the same length as the list of learners used
+#' in fitting `veb_fit_stumps`
+#'
+#' @param moment is the desired posterior moment to calculate. This can be either 1, 2, or c(1, 2)
+#'
+#' @return a vector of first posterior moments, second posterior moments, or a matrix whose columns are the first and
+#' second posterior moments respectively (depending on the supplied `moment`)
+#'
+#' @export
+predict_veb_boost_stumps = function(veb_fit_stumps, X_test, X_test_list = NULL, moment = c(1, 2)) {
+  if (!is_valid_matrix(X_test)) {
+    stop("'X_test' must be a valid numeric matrix")
+  }
+  if (!is.null(X_test_list) && class(X_test_list) != "list") {
+    stop("'X_test_list' must be NULL or a list")
+  }
+  X_test_stumps = NULL
+  for (node in rev(veb_fit_stumps$leaves)) {
+    if (body(node$learner$predFunction) == body(predFnSusieStumps_cpp)) {
+      if (inherits(X_test, "dgCMatrix")) {
+        X_test_stumps = make_stumps_test_matrix_sp_cpp(X_test, node$learner$X)
+      } else {
+        X_test_stumps = make_stumps_test_matrix_cpp(X_test, node$learner$X)
+      }
+      break
+    }
+  }
+  if (is.null(X_test_stumps)) {
+    stop("No stumps learner found in 'veb_fit_stumps")
+  }
+  return(predict_veb_boost(veb_fit_stumps, c(X_test_list, X_test_stumps), moment))
+}

@@ -1,7 +1,7 @@
 ### mr.ash fit/pred/const functions ###
 #' @import mr.ash.alpha
 
-weighted.mr.ash = function(X, Y, sigma2, init = NULL) {
+weighted.mr.ash = function(X, Y, sigma2, currentFit = NULL) {
   if (length(sigma2) == 1) {
     sigma2 = rep(sigma2, length(Y))
   }
@@ -25,11 +25,12 @@ weighted.mr.ash = function(X, Y, sigma2, init = NULL) {
   if (class(beta.init) == "try-error") {
     beta.init = NULL
   }
-  pi.init = try({init$prior_pi})
+  pi.init = try({currentFit$prior_pi})
   if (class(pi.init) == "try-error") {
     pi.init = NULL
   }
-  mr.ash.fit = mr.ash(X = X_tilde, y = Y_tilde, sa2 = 1 * (2^(0.05*(0:29)) - 1)^2, max.iter = 100, beta.init = beta.init, pi = pi.init, update.sigma2 = FALSE, sigma2 = 1, standardize = FALSE, intercept = FALSE)
+  # mr.ash.fit = mr.ash(X = X_tilde, y = Y_tilde, sa2 = 1 * (2^(0.05*(0:29)) - 1)^2, max.iter = 100, beta.init = beta.init, pi = pi.init, update.sigma2 = FALSE, sigma2 = 1, standardize = FALSE, intercept = FALSE)
+  mr.ash.fit = mr.ash(X = X_tilde, y = Y_tilde, sa2 = currentFit$prior_var, max.iter = 100, beta.init = beta.init, pi = pi.init, update.sigma2 = FALSE, sigma2 = 1, standardize = FALSE, intercept = FALSE)
   mr.ash.post = get.full.posterior(mr.ash.fit)
 
   beta_post_1 = rowSums(mr.ash.post$phi * mr.ash.post$m)
@@ -56,21 +57,22 @@ weighted.mr.ash = function(X, Y, sigma2, init = NULL) {
 
 }
 
-fitFn.mr.ash = function(X, Y, sigma2, init) {
-  return(weighted.mr.ash(X, Y, sigma2, init))
+fitFn.mr.ash = function(X, Y, sigma2, currentFit) {
+  return(weighted.mr.ash(X, Y, sigma2, currentFit))
 }
 
 
 #' @importFrom emulator quad.form
-predFn.mr.ash = function(X_new, currentFit, moment = c(1, 2)) {
+predFn.mr.ash = function(X_test, currentFit, moment = c(1, 2)) {
   beta_post_1 = rowSums(currentFit$mr.ash.post$phi * currentFit$mr.ash.post$m)
   if (moment == 1) {
-    return(currentFit$intercept + (X_new %*% beta_post_1))
+    return(currentFit$intercept + (X_test %*% beta_post_1))
   } else if (moment == 2) {
     beta_post_2 = tcrossprod(beta_post_1)
     diag(beta_post_2) = rowSums(currentFit$mr.ash.post$phi * (currentFit$mr.ash.post$s2 + currentFit$mr.ash.post$m^2))
-    X_new_cent = sweep(X_new[[1]], MARGIN = 2, STATS = currentFit$X_avg, FUN = '-')
-    return(currentFit$Y_avg^2 + 2*currentFit$Y_avg*(X_new %*% beta_post_1) - sum(currentFit$X_avg * beta_post_1) + apply(X_new_cent, MARGIN = 1, function(x) quad.form(beta_post_2, x)))
+    X_new_cent = sweep(X_test, MARGIN = 2, STATS = currentFit$X_avg, FUN = '-')
+    # return(currentFit$Y_avg^2 + 2*currentFit$Y_avg*(X_new %*% beta_post_1) - sum(currentFit$X_avg * beta_post_1) + apply(X_new_cent, MARGIN = 1, function(x) quad.form(beta_post_2, x)))
+    return(currentFit$Y_avg^2 + 2*currentFit$Y_avg*(X_new_cent %*% beta_post_1) + apply(X_new_cent, MARGIN = 1, function(x) quad.form(beta_post_2, x)))
   } else {
     stop("`moment` must be either 1 or 2")
   }
@@ -82,16 +84,49 @@ constCheckFn.mr.ash = function(currentFit) {
   return(V < 1e-3)
 }
 
-# mr.ash learner
+#' Create a mr.ash learner object
+#'
+#' Creates a mr.ash learner object to be used in \code{\link{veb_boost}}
+#'
+#' @param X is a matrix to be used as the predictors in training. No scaling is performed by the function,
+#' so the user must do their own scaling (scaling so that each column has a standard deviation of 1 is recommended)
+#'
+#' @param X_test is a matrix to be used as the predictors in testing. No scaling is performed by the function,
+#' so the user must do their own scaling (scaling so that each column has a standard deviation of 1 is recommended)
+#'
+#' @param growMode is a string for if the learner should be grown (or not)
+#' If \code{"+*"}, we grow mu_0 -> (mu_0 * mu_2) + mu_1
+#' If \code{"+"}, we grow mu_0 -> (mu_0 + mu_1)
+#' If \code{"*"}, we grow mu_0 -> (mu_0 * mu_1) (NOTE: Not recommended if we start with \code{k = 1})
+#' If \code{"NA"}, we do not grow this learner
+#'
+#' @param changeToConstant is a logical for if constant fits should be changed to be constant
+#'
 #' @export
-mrAshLearner = list(
-  fitFunction = fitFn.mr.ash,
-  predFunction = predFn.mr.ash,
-  constCheckFunction = constCheckFn.mr.ash,
-  currentFit = NULL,
-  X = NULL,
-  X_test = NULL,
-  growMode = NULL,
-  changeToConstant = FALSE
-)
+#'
+makeMrAshLearner = function(X, X_test = NULL, growMode = c("NA", "+*", "+", "*"), changeToConstant = FALSE) {
+  growMode = match.arg(growMode)
+  if (!(changeToConstant %in% c(TRUE, FALSE))) {
+    stop("'changeToConstant' must be either TRUE or FALSE")
+  }
+  if (!is_valid_matrix(X)) {
+    stop("'X' must be a numeric matrix")
+  }
+  if (!is.null(X_test) && !is_valid_matrix(X_test)) {
+    stop("'X_test' must be a numeric matrix")
+  }
+
+  mrAshLearner = list(
+    fitFunction = fitFn.mr.ash,
+    predFunction = predFn.mr.ash,
+    constCheckFunction = constCheckFn.mr.ash,
+    currentFit = NULL,
+    X = X,
+    X_test = X_test,
+    growMode = growMode,
+    changeToConstant = changeToConstant
+  )
+  return(mrAshLearner)
+}
+
 

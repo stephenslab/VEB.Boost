@@ -16,6 +16,8 @@ VEBBoostNode <- R6Class(
 
     weights = 1, # observation weights (constrained to be >0, mean of 1)
 
+    my_class_index = NULL, # for multinomial.titsias
+
     AddChildVEB = function(name, check = c("check", "no-warn", "no-check"), ...) { # add VEB node as child
       child = VEBBoostNode$new(as.character(name), check, ...)
       return(invisible(self$AddChildNode(child)))
@@ -270,7 +272,7 @@ VEBBoostNode <- R6Class(
 
       base_learners = Traverse(self$root, filterFun = function(x) x$isLeaf & !x$isLocked)
       for (base_learner in base_learners) {
-        if (!is.null(base_learner$learner$growMode)) {
+        if (!is.null(base_learner$learner$growMode) && (base_learner$learner$growMode != "NA")) {
           if (base_learner$learner$growMode %in% c("+", "*")) {
             learner_name = paste("mu_", base_learner$root$leafCount, sep = '')
             combine_name = paste("combine_", base_learner$root$leafCount, sep = '')
@@ -281,7 +283,7 @@ VEBBoostNode <- R6Class(
             # add_node$learner$currentFit$KL_div = 0
             add_node$learner$currentFit = list(mu1 = add_node$learner$currentFit$mu1, mu2 = add_node$learner$currentFit$mu2, KL_div = 0)
             base_learner$AddSiblingVEB(add_node, base_learner$learner$growMode, combine_name)
-          } else {
+          } else if (base_learner$learner$growMode == "+*") {
             learner_name = paste("mu_", base_learner$root$leafCount, sep = '')
             combine_name = paste("combine_", base_learner$root$leafCount, sep = '')
 
@@ -317,10 +319,10 @@ VEBBoostNode <- R6Class(
     predict = function(moment = c(1, 2)) { # function to get prediction on new data
       self$root$Do(function(node) {
         if (1 %in% moment) {
-          try({node$pred_mu1 = node$learner$predFunction(node$learner$X_test, node$learner$currentFit, 1)}, silent = TRUE)
+          try({node$pred_mu1 = node$learner$predFunction(node$X_test, node$learner$currentFit, 1)}, silent = TRUE)
         }
         if (2 %in% moment) {
-          try({node$pred_mu2 = node$learner$predFunction(node$learner$X_test, node$learner$currentFit, 2)}, silent = TRUE)
+          try({node$pred_mu2 = node$learner$predFunction(node$X_test, node$learner$currentFit, 2)}, silent = TRUE)
         }
       }, filterFun = function(x) x$isLeaf)
       return(invisible(self$root))
@@ -469,8 +471,15 @@ VEBBoostNode <- R6Class(
             res[which(is.na(attr(self$root$cutpoints, "log_Y")[, 1]))] = self$root$cutpoints[1] - .5/rsd[which(is.na(attr(self$root$cutpoints, "log_Y")[, 1]))]
             res[which(is.na(attr(self$root$cutpoints, "log_Y")[, 2]))] = tail(self$root$cutpoints, 1) + .5/rsd[which(is.na(attr(self$root$cutpoints, "log_Y")[, 2]))]
             return(res)
+          } else if (self$root$family == "multinomial.titsias") {
+            d = self$ensemble$d
+            mu1 = self$ensemble$mu1
+            res = mu1[cbind(1:nrow(mu1), attr(self$ensemble$Y, 'which'))] - (.5 / d[, self$root$my_class_index])
+            is_my_class = is.na(res) # which obs are in my class
+            res[is_my_class] = rowSums(.5 + d[is_my_class, , drop = FALSE]*mu1[is_my_class, , drop = FALSE], na.rm = TRUE) / rowSums(d[is_my_class, , drop = FALSE], na.rm = TRUE)
+            return(res)
           } else {
-            stop("family must be one of 'gaussian', 'binomial', 'negative.binomial', 'poisson.log1pexp', 'aft.loglogistic', or 'ordinal.logistic'")
+            stop("family must be one of 'gaussian', 'binomial', 'negative.binomial', 'poisson.log1pexp', 'aft.loglogistic', 'ordinal.logistic', or 'multinomial.titsias'")
           }
         }
         if (self$parent$operator == "+") {
@@ -514,8 +523,14 @@ VEBBoostNode <- R6Class(
             return(private$.sigma2 / (rowSums(self$d, na.rm = TRUE) * self$weights))
           } else if (self$family == "ordinal.logistic") {
             return(1 / (rowSums(self$d, na.rm = TRUE) * self$weights))
+          } else if (self$family == "multinomial.titsias") {
+            d = self$ensemble$d
+            res = 1 / d[, self$root$my_class_index]
+            is_my_class = is.na(res) # which obs are in my class
+            res[is_my_class] = 1 / rowSums(d[is_my_class, , drop = FALSE], na.rm = TRUE)
+            return(res)
           } else {
-            stop("family must be one of 'gaussian', 'binomial', 'negative.binomial', poisson.log1pexp', 'aft.loglogistic', or 'ordinal.logistic'")
+            stop("family must be one of 'gaussian', 'binomial', 'negative.binomial', poisson.log1pexp', 'aft.loglogistic', 'ordinal.logistic', or 'multinomial.titsias'")
           }
         }
         if (self$parent$operator == "+") {
@@ -597,7 +612,7 @@ VEBBoostNode <- R6Class(
       }
       # make s2 vector of variances
       #s2 = ifelse(length(self$sigma2) == 1, rep(self$sigma2, length(self$Y)), self$sigma2) # something weird w/ this if-else, not sure why
-      if (self$root$family == "gaussian") {
+      if (self$root$family == "gaussian" || self$root$family == "multinomial.titsias") {
         s2 = self$sigma2
         if (length(s2) == 1) {
           s2 = rep(s2, length(self$raw_Y))
@@ -644,7 +659,7 @@ VEBBoostNode <- R6Class(
           sum(attr(self$root$cutpoints, 'log_Y')[attr(self$root$raw_Y, 'int_cens'), 2]) + sum(log(-expm1((attr(self$root$cutpoints, 'log_Y')[attr(self$root$raw_Y, 'int_cens'), 1] - attr(self$root$cutpoints, 'log_Y')[attr(self$root$raw_Y, 'int_cens'), 2])))) -
           sum(.5*abs(self$root$xi) + cbind(log1pexp(-abs(self$root$xi[, 1])), log1pexp(-abs(self$root$xi[, 2]))), na.rm = TRUE) - self$KL_div
       } else {
-        stop("family must be one of 'gaussian', 'binomial', 'negative.binomial', poisson.log1pexp', 'aft.loglogistic', or 'ordinal.logistic'")
+        stop("family must be one of 'gaussian', 'binomial', 'negative.binomial', poisson.log1pexp', 'aft.loglogistic', 'ordinal.logistic', or 'multinomial.titsias'")
       }
     },
 
@@ -691,7 +706,7 @@ VEBBoostNode <- R6Class(
     isLocked = function(value) { # locked <=> V < V_tol, or both learners directly connected (sibling and parent's sibling) are constant, or just not growing this learner
       if (missing(value)) {
         if (self$isLeaf) {
-          return(private$.isLocked || is.null(self$learner$growMode))
+          return(private$.isLocked || is.null(self$learner$growMode) || (self$learner$growMode == "NA"))
         } else {
           return(all(sapply(self$children, function(x) x$isLocked)))
         }

@@ -25,7 +25,7 @@
 #' If \code{"+*"}, we grow mu_0 -> (mu_0 * mu_2) + mu_1
 #' If \code{"+"}, we grow mu_0 -> (mu_0 + mu_1)
 #' If \code{"*"}, we grow mu_0 -> (mu_0 * mu_1) (NOTE: Not recommended if we start with \code{k = 1})
-#' If \code{NULL}, we do not grow this learner
+#' If \code{"NA"}, we do not grow this learner
 #' 8. a logical $changeToConstant for if the learner should be changed to constant if constCheckFunction evaluates to TRUE
 #'
 #' @param Y is a numeric response. For all but the 'aft.loglogistic' family, this should be an n-vector.
@@ -117,13 +117,13 @@
 #'
 
 veb_boost = function(learners, Y, k = 1, d = 1, sigma2 = NULL,
-                     family = c("gaussian", "binomial", "multinomial", "negative.binomial", "poisson.log1pexp", "aft.loglogistic", "ordinal.logistic"),
+                     family = c("gaussian", "binomial", "multinomial.bouchard", "multinomial.titsias", "negative.binomial", "poisson.log1pexp", "aft.loglogistic", "ordinal.logistic"),
                      weights = 1, scaleWeights = TRUE, exposure = NULL, tol = nrow(as.matrix(Y)) / 10000, verbose = TRUE, maxit = Inf, backfit = FALSE) {
 
   ### Check Inputs ###
   # Family
   family = match.arg(family)
-  if (family == "multinomial") {
+  if (grepl("multinomial", family)) {
     Y = as.character(Y)
   }
   if (!(is.vector(Y) || ((family == 'aft.loglogistic') && (is_valid_matrix(Y)) && (ncol(Y) == 2)))) {
@@ -168,14 +168,23 @@ veb_boost = function(learners, Y, k = 1, d = 1, sigma2 = NULL,
     if (class(learner$fitFunction) != "function") {
       stop("'$fitFunction' must be a function")
     }
+    if (!identical(tolower(names(formals(learner$fitFunction))), c("x", "y", "sigma2", "currentfit"))) {
+      stop("'$fitFunction' must take in arguments 'X', 'Y', 'sigma2', and 'currentfit' (in that order, case insensitive)")
+    }
     if (class(learner$predFunction) != "function") {
       stop("'$predFunction' must be a function")
+    }
+    if (!identical(tolower(names(formals(learner$predFunction))), c("x_test", "currentfit", "moment"))) {
+      stop("'$predFunction' must take in arguments 'X_test', 'currentFit', and 'moment' (in that order, case insensitive)")
     }
     if (class(learner$constCheckFunction) != "function") {
       stop("'$constCheckFunction' must be a function")
     }
-    if (!is.null(learner$growMode) && !(learner$growMode %in% c("+*", "+", "*"))) {
-      stop("'$growMode' must be either NULL, or in c('+*', '+', '*')")
+    if (tolower(names(formals(learner$constCheckFunction))) != "currentfit") {
+      stop("'constCheckFunction' must take in only the argument currentFit (case insensitive)")
+    }
+    if (!is.null(learner$growMode) && !(learner$growMode %in% c("+*", "+", "*", "NA"))) {
+      stop("'$growMode' must be either NULL, or in c('+*', '+', '*', 'NA')")
     }
   }
   # weights
@@ -257,9 +266,14 @@ veb_boost = function(learners, Y, k = 1, d = 1, sigma2 = NULL,
     attr(Y, 'right_cens') = (Y == max(Y))
     attr(Y, 'int_cens') = !(attr(Y, 'left_cens') | attr(Y, 'right_cens'))
   }
+  if (grepl("multinomial", family)) {
+    classes = sort(unique(Y))
+    attr(Y, 'which') = sapply(Y, function(j) which(j == classes))
+  }
 
   ### Run Non-multinomial Cases ###
-  if (family != "multinomial") {
+  # if (family != "multinomial") {
+  if (!grepl("multinomial", family)) {
     # initialize tree
     veb_boost_tree = initialize_veb_boost_tree(learners = learners, Y = Y, k = k, d = d, weights = weights, family = family, exposure = exposure)
     if (family == "gaussian") {
@@ -312,12 +326,14 @@ veb_boost = function(learners, Y, k = 1, d = 1, sigma2 = NULL,
   } else { # else, multinomial case
     classes = sort(unique(Y))
     learner_multiclass = VEBBoostMultiClassLearner$new()
+    learner_multiclass$family = family
     learner_multiclass$Y = Y
     learner_multiclass$classes = classes
+    fam = ifelse(family == "multinomial.bouchard", "binomial", "multinomial.titsias")
 
     learnerList = list()
     for (j in 1:length(classes)) { # add learners to learnerList
-      classLearner = initialize_veb_boost_tree(learners = learners, Y = 1 * (Y == classes[j]), k = k, d = d, weights = weights, family = "binomial")
+      classLearner = initialize_veb_boost_tree(learners = learners, Y = 1 * (Y == classes[j]), k = k, d = d, weights = weights, family = fam, my_class_index = j)
       learnerList = c(learnerList, classLearner)
     }
     names(learnerList) = paste0("classLearner_", classes, sep = "")
@@ -366,6 +382,8 @@ veb_boost = function(learners, Y, k = 1, d = 1, sigma2 = NULL,
 #'
 #' @param X_test is an optional (m X p) matrix to be used as the testing data. Posterior mean response is saved in the output's field \code{$pred_mu1}
 #'
+#' @param learners is a list of other learners to be used in \code{\link{veb_boost}}
+#'
 #' @param include_linear is a logical of length 1 or p specifying which columns of X we should include as linear terms.
 #' If the length is 1, this value gets recycled for all columns of X.
 #' If NULL is supplied, then all valid linear terms are used.
@@ -392,7 +410,7 @@ veb_boost = function(learners, Y, k = 1, d = 1, sigma2 = NULL,
 #' If \code{"+*"}, we grow mu_0 -> (mu_0 * mu_2) + mu_1
 #' If \code{"+"}, we grow mu_0 -> (mu_0 + mu_1)
 #' If \code{"*"}, we grow mu_0 -> (mu_0 * mu_1) (NOTE: Not recommended if we start with \code{k = 1})
-#' If \code{NULL}, we do not grow this learner
+#' If \code{"NA"}, we do not grow this learner
 #'
 #' @param changeToConstant is a logical for if constant fits should be changed to be constant
 #'
@@ -426,9 +444,9 @@ veb_boost = function(learners, Y, k = 1, d = 1, sigma2 = NULL,
 #' @export
 #'
 
-veb_boost_stumps = function(X, Y, X_test = NULL, include_linear = NULL, include_stumps = NULL,
+veb_boost_stumps = function(X, Y, X_test = NULL, learners = NULL, include_linear = NULL, include_stumps = NULL,
                             num_cuts = ceiling(min(length(Y) / 5, max(100, sqrt(length(Y))))),
-                            use_quants = TRUE, scale_X = c("sd", "max", "NA"), growMode = "+*", changeToConstant = FALSE,
+                            use_quants = TRUE, scale_X = c("sd", "max", "NA"), growMode = c("+*", "+", "*", "NA"), changeToConstant = FALSE,
                             max_log_prior_var = 0, use_optim = TRUE, lin_prior_prob = 0.5, nthreads = ceiling(parallel::detectCores(logical = TRUE) / 2), ...) {
   # # Set higher priority for this process
   # psnice_init = tools::psnice()
@@ -444,6 +462,10 @@ veb_boost_stumps = function(X, Y, X_test = NULL, include_linear = NULL, include_
     stop("'X_test' must be a numeric matrix")
   }
   p = ncol(X)
+  # check other learners
+  if (!is.null(learners) && !is.list(learners)) {
+    stop("'learners' must be either NULL or a list of other learners to use")
+  }
   # Check logicals
   if (!(is.null(include_linear) || all(include_linear %in% c(TRUE, FALSE)))) {
     stop("'include_linear' must be either TRUE or FALSE, or be NULL")
@@ -475,9 +497,7 @@ veb_boost_stumps = function(X, Y, X_test = NULL, include_linear = NULL, include_
     stop("'use_quants' must be either TRUE or FALSE")
   }
   scale_X = match.arg(scale_X)
-  if (!is.null(growMode) && !(growMode %in% c("+*", "+", "*"))) {
-    stop("'$growMode' must be either NULL, or in c('+*', '+', '*')")
-  }
+  growMode = match.arg(growMode)
   if (!(changeToConstant %in% c(TRUE, FALSE))) {
     stop("'changeToConstant' must be either TRUE or FALSE")
   }
@@ -532,117 +552,16 @@ veb_boost_stumps = function(X, Y, X_test = NULL, include_linear = NULL, include_
     }
   }
 
-  fitFnSusieStumps_maxlV = function(X, Y, sigma2, init) {
-    return(weighted_SER_cpp(X, Y, sigma2, init, max_log_prior_var, lin_prior_prob, use_optim))
+  fitFnSusieStumps_maxlV = function(X, Y, sigma2, currentFit) {
+    return(weighted_SER_cpp(X, Y, sigma2, currentFit, max_log_prior_var, lin_prior_prob, use_optim))
   }
 
   stumps_learner = list(fitFunction = fitFnSusieStumps_maxlV, predFunction = predFnSusieStumps_cpp, constCheckFunction = constCheckFnSusieStumps,
                         currentFit = NULL, X = X_stumps, X_test = X_test_stumps, growMode = growMode, changeToConstant = changeToConstant)
 
   # Run
-  veb.fit = veb_boost(learner = list(stumps_learner), Y = Y, ...)
+  veb.fit = veb_boost(learners = c(learners, list(stumps_learner)), Y = Y, ...)
 
   return(veb.fit)
 }
-
-
-#' #' Wrapper for using VEB-Boost with the FLAM prior w/ stumps
-#' #'
-#' #' @details
-#' #'
-#' #' This function performs VEB-Boosting, where the prior to be used is the FLAM prior, and our predictors are the stumps made from the columns of X
-#' #'
-#' #' @param X An (n x p) numeric matrix to be used as the predictors (currently, this wrapper forces all nodes to use the same X)
-#' #'
-#' #' @param Y is a numeric vector response
-#' #'
-#' #' @param X_test is an optional (m X p) matrix to be used as the testing data. Posterior mean response is saved in the output's field \code{$pred_mu1}
-#' #'
-#' #' @param num_cuts is a whole number of length 1 or p specifying how many cuts to make when making the stumps terms.
-#' #' If the length is 1, this value gets recycled for all columns of X.
-#' #' For entries corresponding to the indices where \code{include_stumps} is FALSE, these values are ignored.
-#' #' We use the quantiles from each predictor when making the stumps splits, using \code{num_cuts} of them.
-#' #' If \code{num_cuts = Inf}, then all values of the variables are used as split points.
-#' #'
-#' #' @param use_quants is a logical for if the cut-points should be based off of the quantiles (`use_quants = TRUE`), or if the
-#' #' cut points should be evenly spaced in the range of the variable (`use_quants = FALSE`).
-#' #'
-#' #'
-#' #' @param ... Other arguments to be passed to \code{\link{veb_boost}}
-#' #'
-#' #' @return A \code{VEB_Boost_Node} object with the fit
-#' #'
-#' #' @examples
-#' #' set.seed(1)
-#' #' n = 1000
-#' #' p = 1000
-#' #' X = matrix(runif(n * p), nrow = n, ncol = p)
-#' #' Y = rnorm(n, 5*sin(3*X[, 1]) + 2*(X[, 2]^2) + 3*X[, 3]*X[, 4])
-#' #' veb.flam.fit = veb_boost_flam(X, Y, family = "gaussian")
-#' #'
-#' #' @importFrom sparseMatrixStats colRanges
-#' #' @importFrom sparseMatrixStats colQuantiles
-#' #'
-#' #'
-#' #'
-#'
-#' veb_boost_flam = function(X, Y, X_test = NULL,
-#'                             num_cuts = ceiling(min(length(Y) / 5, max(100, sqrt(length(Y))))),
-#'                             use_quants = TRUE, ...) {
-#'   ### Check Inputs ###
-#'   # Check X
-#'   if (!is_valid_matrix(X)) {
-#'     stop("'X' must be a numeric matrix")
-#'   }
-#'   if (!is.null(X_test) && !is_valid_matrix(X_test)) {
-#'     stop("'X_test' must be a numeric matrix")
-#'   }
-#'   p = ncol(X)
-#'   # Make sure num_cuts is a positive whole number
-#'   if (any(num_cuts < 1) || any(num_cuts[is.finite(num_cuts)] %% 1 != 0)) {
-#'     stop("'num_cuts' must be a positive whole number or Inf")
-#'   }
-#'   if (length(num_cuts) != 1) {
-#'     stop("'num_cuts' must have length 1")
-#'   }
-#'   if (!(use_quants %in% c(TRUE, FALSE))) {
-#'     stop("'use_quants' must be either TRUE or FALSE")
-#'   }
-#'
-#'   # Make stumps matrix
-#'   if (is.infinite(num_cuts)) {
-#'     cuts = NULL
-#'   } else {
-#'     ppts = ppoints(num_cuts)
-#'     if (use_quants) {
-#'       col_quants = sparseMatrixStats::colQuantiles(X, probs = ppts)
-#'       cuts = asplit(col_quants, 1)
-#'     } else {
-#'       col_ranges = sparseMatrixStats::colRanges(X)
-#'       cuts = lapply(1:p, function(j) col_ranges[j, 1]*(1 - ppts) + col_ranges[j, 2]*ppts)
-#'     }
-#'   }
-#'   X_stumps = make_stumps_matrix(X, FALSE, TRUE, cuts)
-#'
-#'
-#'   # set up testing data, if any
-#'   X_test_stumps = NULL
-#'   if (!is.null(X_test)) {
-#'     # re-define cuts, for case where cuts = NULL, so that we use training data for splits, not test data
-#'     if (is.null(cuts)) {
-#'       cuts = lapply(X_stumps, function(x) attr(x, 'br'))
-#'       if (any(include_linear)) {
-#'         cuts = cuts[-1]
-#'       }
-#'     }
-#'     X_test_stumps = make_stumps_matrix(X_test, FALSE, TRUE, cuts)
-#'   }
-#'
-#'   # Run
-#'   veb.fit = veb_boost(X = X_stumps, Y = Y, X_test = X_test_stumps,
-#'                       fitFunctions = fitFnFLAM, predFunctions = predFnFLAM, constCheckFunctions = constCheckFnFLAM,
-#'                       ...)
-#'
-#'   return(veb.fit)
-#' }
 

@@ -1,17 +1,17 @@
 #' @keywords internal
-fitFnConstComp = function(X, Y, sigma2, init) { # constant fit function
+fitFnConstComp = function(X, Y, sigma2, currentFit) { # constant fit function
   if (length(sigma2) == 1) {
     sigma2 = rep(sigma2, length(Y))
   }
   intercept = weighted.mean(Y, 1/sigma2)
   KL_div = 0
-  
+
   mu1 = intercept
   mu2 = intercept^2
   return(list(mu1 = mu1, mu2 = mu2, intercept = intercept, KL_div = KL_div))
 }
 #' @keywords internal
-predFnConstComp = function(X_new, currentFit, moment = c(1, 2)) { # constant prediction function
+predFnConstComp = function(X_test, currentFit, moment = c(1, 2)) { # constant prediction function
   if (moment == 1) {
     return(currentFit$intercept)
   } else if (moment == 2) {

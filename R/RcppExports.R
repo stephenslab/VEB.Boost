@@ -21,8 +21,8 @@ weighted_SER_cpp <- function(xp, Y, sigma2, init = NULL, max_lV = 0.0, lin_prior
     .Call(`_VEB_Boost_weighted_SER_cpp`, xp, Y, sigma2, init, max_lV, lin_prior_prob, use_optim)
 }
 
-predFnSusieStumps_cpp <- function(xp_new, currentFit, moment) {
-    .Call(`_VEB_Boost_predFnSusieStumps_cpp`, xp_new, currentFit, moment)
+predFnSusieStumps_cpp <- function(X_test, currentFit, moment) {
+    .Call(`_VEB_Boost_predFnSusieStumps_cpp`, X_test, currentFit, moment)
 }
 
 getAlphaByVar <- function(xp, currentFit) {

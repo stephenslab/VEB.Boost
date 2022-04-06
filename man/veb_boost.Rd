@@ -10,8 +10,8 @@ veb_boost(
   k = 1,
   d = 1,
   sigma2 = NULL,
-  family = c("gaussian", "binomial", "multinomial", "negative.binomial",
-    "poisson.log1pexp", "aft.loglogistic", "ordinal.logistic"),
+  family = c("gaussian", "binomial", "multinomial.bouchard", "multinomial.titsias",
+    "negative.binomial", "poisson.log1pexp", "aft.loglogistic", "ordinal.logistic"),
   weights = 1,
   scaleWeights = TRUE,
   exposure = NULL,
@@ -34,7 +34,7 @@ A learner object is comprised of:
 If \code{"+*"}, we grow mu_0 -> (mu_0 * mu_2) + mu_1
 If \code{"+"}, we grow mu_0 -> (mu_0 + mu_1)
 If \code{"*"}, we grow mu_0 -> (mu_0 * mu_1) (NOTE: Not recommended if we start with \code{k = 1})
-If \code{NULL}, we do not grow this learner
+If \code{"NA"}, we do not grow this learner
 8. a logical $changeToConstant for if the learner should be changed to constant if constCheckFunction evaluates to TRUE}
 
 \item{Y}{is a numeric response. For all but the 'aft.loglogistic' family, this should be an n-vector.
