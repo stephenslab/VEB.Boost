@@ -101,12 +101,12 @@ VEBBoostNode <- R6Class(
         a1 = -sum(self$root$weights[attr(self$root$raw_Y, 'not_cens')])
         a2 = .5*(sum(self$root$weights[attr(self$root$raw_Y, 'left_cens')] * (attr(self$root$raw_Y, 'log_Y')[attr(self$root$raw_Y, 'left_cens'), 2] - self$root$mu1[attr(self$root$raw_Y, 'left_cens')])) +
                    sum(self$root$weights[attr(self$root$raw_Y, 'right_cens')] * (self$root$mu1[attr(self$root$raw_Y, 'right_cens')] - attr(self$root$raw_Y, 'log_Y')[attr(self$root$raw_Y, 'right_cens'), 1])) -
-                   sum(self$root$weights[attr(self$root$raw_Y, 'int_cens')] * (attr(self$root$raw_Y, 'log_Y')[attr(self$root$raw_Y, 'int_cens'), 2] - attr(self$root$raw_Y, 'log_Y')[attr(self$root$raw_Y, 'int_cens'), 1])))
+                   sum(self$root$weights[attr(self$root$raw_Y, 'int_cens')] * (attr(self$root$raw_Y, 'log_Y')[attr(self$root$raw_Y, 'int_cens'), 2] - attr(self$root$raw_Y, 'log_Y')[attr(self$root$raw_Y, 'int_cens'), 1]))) +
+                   sum(attr(self$root$raw_Y, 'log_Y')[attr(self$root$raw_Y, 'int_cens'), 2])
         a3 = -.5*sum(cbind(self$root$weights, self$root$weights)*self$root$d*(cbind(self$root$mu2, self$root$mu2) - 2*cbind(self$root$mu1, self$root$mu1)*attr(self$root$raw_Y, 'log_Y') + attr(self$root$raw_Y, 'log_Y')^2), na.rm = TRUE)
         nll.logscale = function(lS) {
           -(a1*lS + a2*exp(-lS) + a3*exp(-2*lS) +
-              sum(attr(self$root$raw_Y, 'log_Y')[attr(self$root$raw_Y, 'int_cens'), 2])/exp(lS) +
-              sum(log(-expm1((attr(self$root$raw_Y, 'log_Y')[attr(self$root$raw_Y, 'int_cens'), 1] - attr(self$root$raw_Y, 'log_Y')[attr(self$root$raw_Y, 'int_cens'), 2])/exp(lS)))))
+              sum(log(-expm1((attr(self$root$raw_Y, 'log_Y')[attr(self$root$raw_Y, 'int_cens'), 1] - attr(self$root$raw_Y, 'log_Y')[attr(self$root$raw_Y, 'int_cens'), 2])*exp(-lS)))))
         }
         lS = optim(par = .5*log(self$raw_sigma2), fn = nll.logscale, method = 'Brent', lower = -15, upper = 35)$par
         self$sigma2 = exp(2*lS)
@@ -156,7 +156,7 @@ VEBBoostNode <- R6Class(
         }
         attr(self$cutpoints, "log_Y")[attr(self$root$raw_Y, 'right_cens'), 1] = tail(self$cutpoints, 1)
       } else {
-        self$sigma2 = ((sum(self$root$Y^2 * self$root$weights) - 2*sum(self$root$Y*self$root$mu1*self$root$weights) + sum(self$root$mu2 * self$root$weights))) / length(self$root$Y)
+        self$sigma2 = ((sum(self$root$Y^2 * self$root$weights) - 2*sum(self$root$Y*self$root$mu1*self$root$weights) + sum(self$root$mu2 * self$root$weights))) / sum(self$root$weights)
       }
       return(invisible(self))
     },
