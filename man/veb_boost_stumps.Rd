@@ -12,6 +12,8 @@ veb_boost_stumps(
   include_linear = NULL,
   include_stumps = NULL,
   num_cuts = ceiling(min(length(Y)/5, max(100, sqrt(length(Y))))),
+  k = 1,
+  d = 1,
   use_quants = TRUE,
   scale_X = c("sd", "max", "NA"),
   growMode = c("+*", "+", "*", "NA"),
@@ -19,6 +21,7 @@ veb_boost_stumps(
   max_log_prior_var = 0,
   use_optim = TRUE,
   lin_prior_prob = 0.5,
+  reverse_learners = FALSE,
   nthreads = ceiling(parallel::detectCores(logical = TRUE)/2),
   ...
 )
@@ -45,6 +48,13 @@ If the length is 1, this value gets recycled for all columns of X.
 For entries corresponding to the indices where \code{include_stumps} is FALSE, these values are ignored.
 We use the quantiles from each predictor when making the stumps splits, using \code{num_cuts} of them.
 If \code{num_cuts = Inf}, then all values of the variables are used as split points.}
+
+\item{k}{is an integer, or a vector of integers of length \code{length(learners)}, for how many terms are in the sum of nodes (for each learner)}
+
+\item{d}{is either an integer, or an integer vector of length \code{k}, or a list of integer vectors of length \code{length(learners)}
+(each element either an integer, or a vector of length \code{k}) for the multiplicative depth of each of the k terms
+NOTE: This can be dangerous. For example, if the fit starts out too large, then entire branhces will be fit to be exactly
+zero. When this happens, we end up dividing by 0 in places, and this results in NAs, -Inf, etc. USE AT YOUR OWN RISK}
 
 \item{use_quants}{is a logical for if the cut-points should be based off of the quantiles (`use_quants = TRUE`), or if the
 cut points should be evenly spaced in the range of the variable (`use_quants = FALSE`).}
@@ -73,6 +83,9 @@ If FALSE, then a single EM step is taken to optimize over V}
 \item{lin_prior_prob}{is a number between 0 and 1 that gives the prior probability that the effect variable is a linear term.
 This means that (1 - lin_prior_prob) is the probability that the effect variable is a stump term.
 Within linear terms and stump terms, all variables have the same prior variance.}
+
+\item{reverse_learners}{is a logical for if the order of learners should be reversed. If FALSE, all additional learners in `learners` will
+will come first. If TRUE, the stumps learners will be first.}
 
 \item{...}{Other arguments to be passed to \code{\link{veb_boost}}}
 }

@@ -398,6 +398,13 @@ veb_boost = function(learners, Y, k = 1, d = 1, sigma2 = NULL,
 #' We use the quantiles from each predictor when making the stumps splits, using \code{num_cuts} of them.
 #' If \code{num_cuts = Inf}, then all values of the variables are used as split points.
 #'
+#' @param k is an integer, or a vector of integers of length \code{length(learners)}, for how many terms are in the sum of nodes (for each learner)
+#'
+#' @param d is either an integer, or an integer vector of length \code{k}, or a list of integer vectors of length \code{length(learners)}
+#' (each element either an integer, or a vector of length \code{k}) for the multiplicative depth of each of the k terms
+#' NOTE: This can be dangerous. For example, if the fit starts out too large, then entire branhces will be fit to be exactly
+#' zero. When this happens, we end up dividing by 0 in places, and this results in NAs, -Inf, etc. USE AT YOUR OWN RISK
+#'
 #' @param use_quants is a logical for if the cut-points should be based off of the quantiles (`use_quants = TRUE`), or if the
 #' cut points should be evenly spaced in the range of the variable (`use_quants = FALSE`).
 #'
@@ -426,6 +433,9 @@ veb_boost = function(learners, Y, k = 1, d = 1, sigma2 = NULL,
 #' This means that (1 - lin_prior_prob) is the probability that the effect variable is a stump term.
 #' Within linear terms and stump terms, all variables have the same prior variance.
 #'
+#' @param reverse_learners is a logical for if the order of learners should be reversed. If FALSE, all additional learners in `learners` will
+#' will come first. If TRUE, the stumps learners will be first.
+#'
 #' @param ... Other arguments to be passed to \code{\link{veb_boost}}
 #'
 #' @return A \code{VEB_Boost_Node} object with the fit
@@ -445,9 +455,9 @@ veb_boost = function(learners, Y, k = 1, d = 1, sigma2 = NULL,
 #'
 
 veb_boost_stumps = function(X, Y, X_test = NULL, learners = NULL, include_linear = NULL, include_stumps = NULL,
-                            num_cuts = ceiling(min(length(Y) / 5, max(100, sqrt(length(Y))))),
+                            num_cuts = ceiling(min(length(Y) / 5, max(100, sqrt(length(Y))))), k = 1, d = 1,
                             use_quants = TRUE, scale_X = c("sd", "max", "NA"), growMode = c("+*", "+", "*", "NA"), changeToConstant = FALSE,
-                            max_log_prior_var = 0, use_optim = TRUE, lin_prior_prob = 0.5, nthreads = ceiling(parallel::detectCores(logical = TRUE) / 2), ...) {
+                            max_log_prior_var = 0, use_optim = TRUE, lin_prior_prob = 0.5, reverse_learners = FALSE, nthreads = ceiling(parallel::detectCores(logical = TRUE) / 2), ...) {
   # # Set higher priority for this process
   # psnice_init = tools::psnice()
   # on.exit({tools::psnice(tools::psnice(value = psnice_init))})
@@ -520,6 +530,9 @@ veb_boost_stumps = function(X, Y, X_test = NULL, learners = NULL, include_linear
     warning("Restricting 'lin_prior_prob' to be in the range [0, 1]")
     lin_prior_prob = min(1, max(0, lin_prior_prob))
   }
+  if (!(reverse_learners %in% c(TRUE, FALSE))) {
+    stop("'reverse_learners' must be either TRUE or FALSE")
+  }
 
   scale_X = ifelse(scale_X == "sd", 1, ifelse(scale_X == "max", 2, 0))
 
@@ -559,8 +572,14 @@ veb_boost_stumps = function(X, Y, X_test = NULL, learners = NULL, include_linear
   stumps_learner = list(fitFunction = fitFnSusieStumps_maxlV, predFunction = predFnSusieStumps_cpp, constCheckFunction = constCheckFnSusieStumps,
                         currentFit = NULL, X = X_stumps, X_test = X_test_stumps, growMode = growMode, changeToConstant = changeToConstant)
 
+  learners = c(learners, list(stumps_learner))
+  if (reverse_learners) { # have to explicitly use k and d here, otherwise it doesn't get changed in the `...`
+    learners = rev(learners)
+    k = rev(k)
+    d = rev(d)
+  }
   # Run
-  veb.fit = veb_boost(learners = c(learners, list(stumps_learner)), Y = Y, ...)
+  veb.fit = veb_boost(learners = learners, Y = Y, k = k, d = d, ...)
 
   return(veb.fit)
 }

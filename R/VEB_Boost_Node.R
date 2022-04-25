@@ -217,7 +217,7 @@ VEBBoostNode <- R6Class(
       self$AddChildNode(self_copy)
       self$AddChildNode(learner)
 
-      if (all(learner$mu1 == 1 * (operator == "*")) & all(learner$mu2 == 1 * (operator == "*"))) {
+      if (all(learner$mu1 == (1 * (operator == "*"))) & all(learner$mu2 == (1 * (operator == "*")))) {
         # if adding 'null' node, only need to change the moments stored in our own private field, since everything downstream will be unchanged
         # self_copy$parent$updateMoments()
         # self_copy$updateMoments()
@@ -273,16 +273,17 @@ VEBBoostNode <- R6Class(
       base_learners = Traverse(self$root, filterFun = function(x) x$isLeaf & !x$isLocked)
       for (base_learner in base_learners) {
         if (!is.null(base_learner$learner$growMode) && (base_learner$learner$growMode != "NA")) {
-          if (base_learner$learner$growMode %in% c("+", "*")) {
+          growMode = base_learner$learner$growMode
+          if (growMode %in% c("+", "*")) {
             learner_name = paste("mu_", base_learner$root$leafCount, sep = '')
             combine_name = paste("combine_", base_learner$root$leafCount, sep = '')
 
             add_node = VEBBoostNode$new(learner_name, learner = base_learner$learner)
-            add_node$learner$currentFit$mu1 = (add_node$learner$currentFit$mu1 * 0) + (base_learner$learner$growMode == "*" * 1)
-            add_node$learner$currentFit$mu2 = (add_node$learner$currentFit$mu2 * 0) + (base_learner$learner$growMode == "*" * 1)
+            add_node$learner$currentFit$mu1 = (add_node$learner$currentFit$mu1 * 0) + (growMode == "*")
+            add_node$learner$currentFit$mu2 = (add_node$learner$currentFit$mu2 * 0) + (growMode == "*")
             # add_node$learner$currentFit$KL_div = 0
             add_node$learner$currentFit = list(mu1 = add_node$learner$currentFit$mu1, mu2 = add_node$learner$currentFit$mu2, KL_div = 0)
-            base_learner$AddSiblingVEB(add_node, base_learner$learner$growMode, combine_name)
+            base_learner$AddSiblingVEB(add_node, growMode, combine_name)
           } else if (base_learner$learner$growMode == "+*") {
             learner_name = paste("mu_", base_learner$root$leafCount, sep = '')
             combine_name = paste("combine_", base_learner$root$leafCount, sep = '')
