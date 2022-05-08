@@ -112,7 +112,8 @@ VEBBoostNode <- R6Class(
         self$sigma2 = exp(2*lS)
       } else if (self$root$family == "ordinal.logistic") {
         d = self$root$d * cbind(self$root$weights, self$root$weights)
-        n_k = aggregate(self$root$weights, by = list(self$root$raw_Y), FUN = sum)[, 2] #n_k = table(self$root$raw_Y)
+        n_k = aggregate(self$root$weights, by = list(factor(self$root$raw_Y, levels = 1:max(self$root$raw_Y))), FUN = sum, drop = FALSE)[, 2] #n_k = table(self$root$raw_Y)
+        n_k[is.na(n_k)] = 0
         sum_d_k_2 = .5*do.call(rbind, lapply(1:max(self$root$raw_Y), function(k) colSums(d[which(self$root$raw_Y == k), ])))
         sum_dT_k = do.call(rbind, lapply(1:max(self$root$raw_Y), function(k) colSums(sweep(d[which(self$root$raw_Y == k), ], 1, self$root$mu1[which(self$root$raw_Y == k)], "*"))))
         fn = function(theta) {
