@@ -85,8 +85,8 @@ namespace stumpsmatrix {
         include_linear = arma::find(include_linear_in);
         col_scale_factors = 1 / col_scale_factors_in;
         X2 = arma::square(X.cols(include_linear) * arma::diagmat(col_scale_factors));
-        nrow = X.n_rows;
-        ncol = X.n_cols;
+        nrow = X2.n_rows;
+        ncol = X2.n_cols;
       }
 
       // input is existing DenseNumericMatrixBlock
@@ -95,8 +95,8 @@ namespace stumpsmatrix {
         include_linear = Mat_in.get()->include_linear;
         col_scale_factors = Mat_in.get()->col_scale_factors;
         X2 = arma::square(X.cols(include_linear) * arma::diagmat(col_scale_factors));
-        nrow = X.n_rows;
-        ncol = X.n_cols;
+        nrow = X2.n_rows;
+        ncol = X2.n_cols;
       }
       
       ~DenseNumericMatrixBlock() {}
@@ -132,43 +132,43 @@ namespace stumpsmatrix {
   class SparseNumericMatrixBlock: public MatrixBlock {
     public:
       SparseNumericMatrixBlock(arma::sp_mat& X_in, arma::uvec include_linear_in, arma::vec col_scale_factors_in) {
-        X = X_in;
         include_linear = arma::find(include_linear_in);
         col_scale_factors = 1 / col_scale_factors_in;
-        X2 = arma::square(X.cols(include_linear) * arma::diagmat(col_scale_factors));
-        nrow = X.n_rows;
-        ncol = X.n_cols;
+        X = X_in.cols(include_linear) * arma::diagmat(col_scale_factors);
+        X2 = arma::square(X);
+        nrow = X2.n_rows;
+        ncol = X2.n_cols;
       }
 
       // input is existing SparseNumericMatrixBlock
       SparseNumericMatrixBlock(arma::sp_mat& X_in, std::shared_ptr<MatrixBlock> Mat_in) {
-          X = X_in;
           include_linear = Mat_in.get()->include_linear;
           col_scale_factors = Mat_in.get()->col_scale_factors;
-          X2 = arma::square(X.cols(include_linear) * arma::diagmat(col_scale_factors));
-          nrow = X.n_rows;
-          ncol = X.n_cols;
+          X = X_in.cols(include_linear) * arma::diagmat(col_scale_factors);
+          X2 = arma::square(X);
+          nrow = X2.n_rows;
+          ncol = X2.n_cols;
       }
       
       ~SparseNumericMatrixBlock() {}
 
       arma::vec compute_Xb(const arma::vec& b, const arma::vec& X_avg) {
-          arma::vec res = X.cols(include_linear) * (b % col_scale_factors) - arma::as_scalar(arma::dot(b, X_avg));
+          arma::vec res = X * b - arma::as_scalar(arma::dot(b, X_avg));
           return(res);
       }
 
       arma::vec compute_Xty(const arma::vec& y, const arma::vec& X_avg) {
-          arma::vec res = (arma::trans(y.t() * X.cols(include_linear)) % col_scale_factors) - (X_avg * arma::sum(y));
+          arma::vec res = arma::trans(y.t() * X) - (X_avg * arma::sum(y));
           return(res);
       }
 
       arma::vec compute_X2b(const arma::vec& b, const arma::vec& X_avg) {
-          arma::vec res = X2 * b - 2 * X.cols(include_linear) * (b % X_avg % col_scale_factors) + arma::as_scalar(arma::sum(X_avg % X_avg % b));
+          arma::vec res = X2 * b - 2 * X * (b % X_avg) + arma::as_scalar(arma::sum(X_avg % X_avg % b));
           return(res);
       }
 
       arma::vec compute_X2ty(const arma::vec& y, const arma::vec& X_avg) {
-          arma::vec res = arma::trans(y.t() * X2) - 2 * arma::trans(y.t() * X.cols(include_linear)) % (X_avg % col_scale_factors) + ((X_avg % X_avg) * arma::sum(y));
+          arma::vec res = arma::trans(y.t() * X2) - 2 * arma::trans(y.t() * X) % X_avg + ((X_avg % X_avg) * arma::sum(y));
           return(res);
       }
       
@@ -606,36 +606,36 @@ namespace stumpsmatrix {
       
       // overload constructor when using sparse X
       StumpsMatrix(arma::sp_mat& X, Rcpp::Nullable<Rcpp::IntegerVector>& _include_linear, Rcpp::Nullable<Rcpp::IntegerVector>& _include_stumps, unsigned int num_cuts, bool use_quants, unsigned int scale_X, unsigned int _ncores) {
-          ncores = _ncores;
-          #if defined(_OPENMP)
+        ncores = _ncores;
+        #if defined(_OPENMP)
             omp_set_num_threads(ncores);
-          #endif
-          include_linear = arma::uvec(X.n_cols);
-          include_stumps = arma::uvec(X.n_cols);
-          bool lin_is_null = _include_linear.isNull();
-          bool stumps_is_null = _include_stumps.isNull();
-          if (!lin_is_null) {
-              include_linear = Rcpp::as<arma::uvec>(_include_linear);
-          }
-          if (!stumps_is_null) {
-              include_stumps = Rcpp::as<arma::uvec>(_include_stumps);
-          } 
-          if (lin_is_null || stumps_is_null) {
-              #if defined(_OPENMP)
+        #endif
+        include_linear = arma::uvec(X.n_cols);
+        include_stumps = arma::uvec(X.n_cols);
+        bool lin_is_null = _include_linear.isNull();
+        bool stumps_is_null = _include_stumps.isNull();
+        if (!lin_is_null) {
+            include_linear = Rcpp::as<arma::uvec>(_include_linear);
+        }
+        if (!stumps_is_null) {
+            include_stumps = Rcpp::as<arma::uvec>(_include_stumps);
+        } 
+        if (lin_is_null || stumps_is_null) {
+            #if defined(_OPENMP)
                 #pragma omp parallel for schedule(dynamic)
-              #endif
-              for (size_t i = 0; i < X.n_cols; i++) {
-                  unsigned int n_unique = count_unique(X.col(i));
-                  if (lin_is_null && n_unique > 1) {
-                      include_linear[i] = 1;
-                  }
-                  if (stumps_is_null && n_unique > 2) {
-                      include_stumps[i] = 1;
-                  }
-              }
-          }
-          ncol_lin = arma::sum(include_linear);
-          arma::uvec which_incl_stumps = arma::find(include_stumps);
+            #endif
+            for (size_t i = 0; i < X.n_cols; i++) {
+                unsigned int n_unique = count_unique(X.col(i));
+                if (lin_is_null && n_unique > 1) {
+                    include_linear[i] = 1;
+                }
+                if (stumps_is_null && n_unique > 2) {
+                    include_stumps[i] = 1;
+                }
+            }
+        }
+        ncol_lin = arma::sum(include_linear);
+        arma::uvec which_incl_stumps = arma::find(include_stumps);
         //blocks = std::vector<MatrixBlock> (which_incl_stumps.size(), MatrixBlock());
         bool any_incl_lin = (ncol_lin > 0);
         if (any_incl_lin) {
@@ -658,9 +658,9 @@ namespace stumpsmatrix {
         if (any_incl_lin) {
             arma::vec col_scale_factors;
             if (scale_X == 1) {
-                col_scale_factors = arma::trans(arma::stddev(arma::mat(X.cols(arma::find(include_linear)))));
+                col_scale_factors = arma::vec(arma::sqrt(arma::trans(arma::var(X.cols(arma::find(include_linear))))));
             } else if (scale_X == 2) {
-                col_scale_factors = arma::trans(arma::max(arma::abs(X.cols(arma::find(include_linear)))));
+                col_scale_factors = arma::vec(arma::trans(arma::max(arma::abs(X.cols(arma::find(include_linear))))));
             } else {
                 col_scale_factors = arma::ones(ncol_lin);
             }
