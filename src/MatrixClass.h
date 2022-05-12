@@ -173,8 +173,8 @@ namespace stumpsmatrix {
       }
       
     protected:
-        arma::mat X; // data
-        arma::mat X2; // scaled_data % scaled_data (have to compute when multiplying anyway, so might as well store it)
+        arma::sp_mat X; // data
+        arma::sp_mat X2; // scaled_data % scaled_data (have to compute when multiplying anyway, so might as well store it)
         //arma::vec col_scale_factors; // 1 / column scaling factors (so multiply columns by these factors)
         //arma::uvec include_linear;
   };
