@@ -11,7 +11,7 @@ veb_boost_stumps(
   learners = NULL,
   include_linear = NULL,
   include_stumps = NULL,
-  num_cuts = ceiling(min(length(Y)/5, max(100, sqrt(length(Y))))),
+  num_cuts = ceiling(min(NROW(Y)/5, max(100, sqrt(NROW(Y))))),
   k = 1,
   d = 1,
   use_quants = TRUE,

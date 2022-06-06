@@ -15,7 +15,7 @@ veb_boost(
   weights = 1,
   scaleWeights = TRUE,
   exposure = NULL,
-  tol = nrow(as.matrix(Y))/10000,
+  tol = NROW(Y)/10000,
   verbose = TRUE,
   maxit = Inf,
   backfit = FALSE

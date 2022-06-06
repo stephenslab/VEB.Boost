@@ -118,7 +118,7 @@
 
 veb_boost = function(learners, Y, k = 1, d = 1, sigma2 = NULL,
                      family = c("gaussian", "binomial", "multinomial.bouchard", "multinomial.titsias", "negative.binomial", "poisson.log1pexp", "aft.loglogistic", "ordinal.logistic"),
-                     weights = 1, scaleWeights = TRUE, exposure = NULL, tol = nrow(as.matrix(Y)) / 10000, verbose = TRUE, maxit = Inf, backfit = FALSE) {
+                     weights = 1, scaleWeights = TRUE, exposure = NULL, tol = NROW(Y) / 10000, verbose = TRUE, maxit = Inf, backfit = FALSE) {
 
   ### Check Inputs ###
   # Family
@@ -455,7 +455,7 @@ veb_boost = function(learners, Y, k = 1, d = 1, sigma2 = NULL,
 #'
 
 veb_boost_stumps = function(X, Y, X_test = NULL, learners = NULL, include_linear = NULL, include_stumps = NULL,
-                            num_cuts = ceiling(min(length(Y) / 5, max(100, sqrt(length(Y))))), k = 1, d = 1,
+                            num_cuts = ceiling(min(NROW(Y) / 5, max(100, sqrt(NROW(Y))))), k = 1, d = 1,
                             use_quants = TRUE, scale_X = c("sd", "max", "NA"), growMode = c("+*", "+", "*", "NA"), changeToConstant = FALSE,
                             max_log_prior_var = 0, use_optim = TRUE, lin_prior_prob = 0.5, reverse_learners = FALSE, nthreads = ceiling(parallel::detectCores(logical = TRUE) / 2), ...) {
   # # Set higher priority for this process
@@ -470,6 +470,15 @@ veb_boost_stumps = function(X, Y, X_test = NULL, learners = NULL, include_linear
   }
   if (!is.null(X_test) && !is_valid_matrix(X_test)) {
     stop("'X_test' must be a numeric matrix")
+  }
+  if (any(is.na(X))) {
+    stop("'X' cannot have any NAs. Please handle them accordingly first")
+  }
+  if (!is.null(X_test) && any(is.na(X_test))) {
+    stop("'X_test' cannot have any NAs. Please handle them accordingly first")
+  }
+  if (NROW(X) != NROW(Y)) {
+    stop("'X' and 'Y' must have the same number of observations/rows")
   }
   p = ncol(X)
   # check other learners
