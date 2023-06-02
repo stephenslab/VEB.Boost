@@ -195,6 +195,7 @@ VEBBoostMultiClassLearner <- R6::R6Class(
         }
         xi = self$xi
         c = ((1 - K/2) * a) - (rowSums(xi) / 2) + (rowSums(d * (a^2 - xi^2)) / 2) + rowSums(log(1 + exp(xi)))
+        # c = ((1 - K/2) * a) - (rowSums(xi) / 2) + (rowSums(d * (a^2 - xi^2)) / 2) + rowSums(apply(xi, 2, log1pexp))
         m1 = self$mu1
         m2 = self$mu2
         ELBO = ELBO - (sum(m2 * d) / 2) - sum(m1 * b) - sum(c)
