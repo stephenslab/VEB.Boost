@@ -57,7 +57,9 @@ VEBBoostNode <- R6Class(
           currentInputs$Y = currentInputs$Y - self$siblings[[1]]$mu1
           currentInputs$sigma2 = currentInputs$sigma2
         } else {
-          currentInputs$Y = currentInputs$Y * (self$siblings[[1]]$mu1 / self$siblings[[1]]$mu2)
+          scaling_factor = self$siblings[[1]]$mu1 / self$siblings[[1]]$mu2
+          scaling_factor[self$siblings[[1]]$mu1 == self$siblings[[1]]$mu2] = 1 # for case when both are 0
+          currentInputs$Y = currentInputs$Y * scaling_factor
           currentInputs$sigma2 = currentInputs$sigma2 / self$siblings[[1]]$mu2
         }
         currentInputs$name = self$name
@@ -177,9 +179,11 @@ VEBBoostNode <- R6Class(
         if (update_sigma2) {
           self$root$updateSigma2()
         }
+        if (self$root$family == "cox.ph") {
+          self$root$updateAlpha()
+        }
         i = i+1
         if (all(self$root$sigma2 == 0)) { # if estimate sigma2 is 0, stop
-          browser()
           ELBOs[i] = Inf
           break
         }
@@ -257,11 +261,15 @@ VEBBoostNode <- R6Class(
         }
         # if only adding or multiplying, and we already added or multiplied with another node, and that node is locked, then lock learner
         if ((base_learner$learner$growMode %in% c("+", "*")) && (base_learner$parent$operator == base_learner$learner$growMode) && base_learner$siblings[[1]]$isLocked) {
-          base_learner$isLocked = TRUE
+          if (!identical(base_learner$siblings[[1]]$learner$predFunction, predFnTrt)) {
+            base_learner$isLocked = TRUE
+          }
         }
-        # if "+*", and already if a "+*" part where both "+" anr "*" parts or locked, then lock learner
+        # if "+*", and already if a "+*" part where both "+" and "*" parts or locked, then lock learner
         if ((base_learner$learner$growMode == "+*") && (base_learner$parent$operator == "*") && base_learner$siblings[[1]]$isLocked && (base_learner$parent$parent$operator == "+") && base_learner$parent$siblings[[1]]$isLocked) {
-          base_learner$isLocked = TRUE
+          if (!identical(base_learner$siblings[[1]]$learner$predFunction, predFnTrt)) {
+            base_learner$isLocked = TRUE
+          }
         }
       }
 
@@ -315,6 +323,12 @@ VEBBoostNode <- R6Class(
     convergeFitAll = function(tol = 1e-1, update_sigma2 = FALSE, update_ELBO_progress = TRUE, verbose = FALSE, maxit = Inf) {
       self$addLearnerAll()
       self$convergeFit(tol, update_sigma2, update_ELBO_progress, verbose, maxit = maxit)
+      return(invisible(self$root))
+    },
+
+    updateAlpha = function() { # only for 'cox.ph' case
+      d = self$root$d
+      private$.alpha = (.5*attr(self$root$raw_Y, 'n_k') - 1 + Matrix::colSums(Matrix::Diagonal(x = self$root$mu1) %*% d, na.rm = TRUE)) / colSums(d, na.rm = TRUE)
       return(invisible(self$root))
     },
 
@@ -466,6 +480,12 @@ VEBBoostNode <- R6Class(
             res[attr(private$.Y, 'right_cens')] = attr(private$.Y, 'log_Y')[attr(private$.Y, 'right_cens'), 1] + s_2d[attr(private$.Y, 'right_cens'), 1]
             res[attr(private$.Y, 'int_cens')] = rowSums((attr(private$.Y, 'log_Y')*d)[attr(private$.Y, 'int_cens'), ]) / rowSums(d[attr(private$.Y, 'int_cens'), ])
             return(res)
+          } else if (self$root$family == "cox.ph") {
+            d = self$root$d
+            a = self$root$alpha
+            res = attr(private$.Y, 'not_cens') + Matrix::rowSums(((d %*% Matrix::Diagonal(x = a)) - .5) %*% attr(private$.Y, 'm_k_mat'), na.rm = TRUE)
+            res = res / Matrix::rowSums(d %*% attr(private$.Y, 'm_k_mat'), na.rm = TRUE)
+            return(res)
           } else if (self$root$family == "ordinal.logistic") {
             d = self$root$d
             rsd = rowSums(d, na.rm = T)
@@ -481,14 +501,16 @@ VEBBoostNode <- R6Class(
             res[is_my_class] = rowSums(.5 + d[is_my_class, , drop = FALSE]*mu1[is_my_class, , drop = FALSE], na.rm = TRUE) / rowSums(d[is_my_class, , drop = FALSE], na.rm = TRUE)
             return(res)
           } else {
-            stop("family must be one of 'gaussian', 'binomial', 'negative.binomial', 'poisson.log1pexp', 'aft.loglogistic', 'ordinal.logistic', or 'multinomial.titsias'")
+            stop("family must be one of 'gaussian', 'binomial', 'negative.binomial', 'poisson.log1pexp', 'aft.loglogistic', 'cox.ph', 'ordinal.logistic', or 'multinomial.titsias'")
           }
         }
         if (self$parent$operator == "+") {
           return(self$parent$Y - self$siblings[[1]]$mu1)
         }
         if (self$parent$operator == "*") {
-          return(self$parent$Y * (self$siblings[[1]]$mu1 / self$siblings[[1]]$mu2))
+          scaling_factor = self$siblings[[1]]$mu1 / self$siblings[[1]]$mu2
+          scaling_factor[self$siblings[[1]]$mu1 == self$siblings[[1]]$mu2] = 1 # for case when both are 0
+          return(self$parent$Y * scaling_factor)
         }
       } else {
         if (self$isRoot) {
@@ -523,6 +545,8 @@ VEBBoostNode <- R6Class(
             return(1 / (((.25*private$.exposure) + .17*private$.Y) * self$weights))
           } else if (self$family == "aft.loglogistic") {
             return(private$.sigma2 / (rowSums(self$d, na.rm = TRUE) * self$weights))
+          } else if (self$family == "cox.ph") {
+            return(1 / Matrix::rowSums(self$root$d %*% attr(private$.Y, 'm_k_mat'), na.rm = TRUE))
           } else if (self$family == "ordinal.logistic") {
             return(1 / (rowSums(self$d, na.rm = TRUE) * self$weights))
           } else if (self$family == "multinomial.titsias") {
@@ -532,7 +556,7 @@ VEBBoostNode <- R6Class(
             res[is_my_class] = 1 / rowSums(d[is_my_class, , drop = FALSE], na.rm = TRUE)
             return(res)
           } else {
-            stop("family must be one of 'gaussian', 'binomial', 'negative.binomial', poisson.log1pexp', 'aft.loglogistic', 'ordinal.logistic', or 'multinomial.titsias'")
+            stop("family must be one of 'gaussian', 'binomial', 'negative.binomial', poisson.log1pexp', 'aft.loglogistic', 'cox.ph', 'ordinal.logistic', or 'multinomial.titsias'")
           }
         }
         if (self$parent$operator == "+") {
@@ -628,14 +652,14 @@ VEBBoostNode <- R6Class(
         d = self$root$d
         xi = self$root$xi
         return(
-          sum(self$root$weights * log(ilogit(xi))) + sum(self$root$weights * (xi / 2) * (d*xi - 1)) + sum(self$root$weights * (self$root$raw_Y - .5) * self$root$mu1) -
+          -sum(self$root$weights * log1pexp(-xi)) + sum(self$root$weights * (xi / 2) * (d*xi - 1)) + sum(self$root$weights * (self$root$raw_Y - .5) * self$root$mu1) -
             .5*sum(self$root$weights * self$root$mu2 * d) - self$KL_div
         )
       } else if (self$root$family == "negative.binomial") {
         d = self$root$d
         xi = self$root$xi
         return(
-          sum(self$root$weights * (self$root$raw_Y + self$root$exposure) * log(ilogit(xi))) + .5*sum(self$root$weights * ((self$root$raw_Y - self$root$exposure) * self$root$mu1 - (self$root$raw_Y + self$root$exposure) * xi)) -
+          -sum(self$root$weights * (self$root$raw_Y + self$root$exposure) * log1pexp(-xi)) + .5*sum(self$root$weights * ((self$root$raw_Y - self$root$exposure) * self$root$mu1 - (self$root$raw_Y + self$root$exposure) * xi)) -
             .5*sum(self$root$weights * d * (self$root$raw_Y + self$root$exposure) * (self$root$mu2 - xi^2)) -
             sum(self$root$weights * (lgamma(self$root$raw_Y + self$root$exposure) - lgamma(self$root$exposure) - lfactorial(self$root$raw_Y))) - self$KL_div
         )
@@ -653,6 +677,13 @@ VEBBoostNode <- R6Class(
           .5*sum(cbind(self$root$weights, self$root$weights) * self$root$d * ((cbind(self$root$mu2, self$root$mu2) - 2*cbind(self$root$mu1, self$root$mu1)*attr(self$root$raw_Y, 'log_Y') + attr(self$root$raw_Y, 'log_Y')^2)/self$root$raw_sigma2 - self$xi^2), na.rm = TRUE) +
           sum(self$root$weights[attr(self$root$raw_Y, 'int_cens')] * (attr(self$root$raw_Y, 'log_Y')[attr(self$root$raw_Y, 'int_cens'), 2])/sqrt(self$root$raw_sigma2) + sum(log(-expm1((attr(self$root$raw_Y, 'log_Y')[attr(self$root$raw_Y, 'int_cens'), 1] - attr(self$root$raw_Y, 'log_Y')[attr(self$root$raw_Y, 'int_cens'), 2])/sqrt(self$root$raw_sigma2))))) -
           sum(cbind(self$root$weights, self$root$weights) * (.5*abs(self$root$xi) + cbind(log1pexp(-abs(self$root$xi[, 1])), log1pexp(-abs(self$root$xi[, 2])))), na.rm = TRUE) - self$KL_div
+      } else if (self$root$family == "cox.ph") {
+        s2 = self$root$sigma2
+        y = self$root$Y
+        xi = self$root$xi
+        d = self$root$d
+        a = self$root$alpha
+        return(-.5*sum(self$root$mu2 / s2) + sum(self$root$mu1 * y / s2) + sum(attr(attr(self$root$raw_Y, 'm_k_mat'), 'x') * (colSums(.5*sweep(xi, 2, a, '+') + .5*d*sweep(xi^2, 2, a^2, '-') - apply(xi, 2, log1pexp), na.rm = TRUE) - a)) - self$KL_div)
       } else if (self$root$family == "ordinal.logistic") {
         .5*(sum(attr(self$root$cutpoints, 'log_Y')[attr(self$root$raw_Y, 'left_cens'), 2] - self$root$mu1[attr(self$root$raw_Y, 'left_cens')]) +
               sum(self$root$mu1[attr(self$root$raw_Y, 'right_cens')] - attr(self$root$cutpoints, 'log_Y')[attr(self$root$raw_Y, 'right_cens'), 1]) -
@@ -661,7 +692,7 @@ VEBBoostNode <- R6Class(
           sum(attr(self$root$cutpoints, 'log_Y')[attr(self$root$raw_Y, 'int_cens'), 2]) + sum(log(-expm1((attr(self$root$cutpoints, 'log_Y')[attr(self$root$raw_Y, 'int_cens'), 1] - attr(self$root$cutpoints, 'log_Y')[attr(self$root$raw_Y, 'int_cens'), 2])))) -
           sum(.5*abs(self$root$xi) + cbind(log1pexp(-abs(self$root$xi[, 1])), log1pexp(-abs(self$root$xi[, 2]))), na.rm = TRUE) - self$KL_div
       } else {
-        stop("family must be one of 'gaussian', 'binomial', 'negative.binomial', poisson.log1pexp', 'aft.loglogistic', 'ordinal.logistic', or 'multinomial.titsias'")
+        stop("family must be one of 'gaussian', 'binomial', 'negative.binomial', poisson.log1pexp', 'aft.loglogistic', 'cox.ph', 'ordinal.logistic', or 'multinomial.titsias'")
       }
     },
 
@@ -670,6 +701,11 @@ VEBBoostNode <- R6Class(
         stop("`$alpha' cannot be modified directly except at the ensemble level", call. = FALSE)
       }
       if (self$isEnsemble) { # if isEnsemble, e.g. if we're in linear or logistic case, return root$.alpha (SHOULD BE 0 IN THIS CASE)
+        if (self$root$family == "cox.ph") {
+          if (length(private$.alpha) == 1) {
+            return(rep(private$.alpha, length(attr(self$root$raw_Y, 'unique_times'))))
+          }
+        }
         return(private$.alpha)
       }
       return(self$ensemble$alpha) # otherwise, return ensemble's alpha
@@ -683,6 +719,9 @@ VEBBoostNode <- R6Class(
         return(sqrt((1 / self$root$raw_sigma2) * (cbind(self$root$mu2, self$root$mu2) - 2*cbind(self$root$mu1, self$root$mu1)*attr(self$root$raw_Y, 'log_Y') + attr(self$root$raw_Y, 'log_Y')^2)))
       } else if (self$root$family == "ordinal.logistic") {
         return(sqrt((cbind(self$root$mu2, self$root$mu2) - 2*cbind(self$root$mu1, self$root$mu1)*attr(self$root$cutpoints, 'log_Y') + attr(self$root$cutpoints, 'log_Y')^2)))
+      } else if (self$root$family == "cox.ph") {
+        a = self$root$alpha
+        return(do.call(cbind, lapply(1:length(attr(self$root$raw_Y, 'unique_times')), function(k) ifelse(self$root$raw_Y[, 1] < attr(self$root$raw_Y, 'unique_times')[k], NA, sqrt(self$root$mu2 - 2*a[k]*self$root$mu1 + a[k]^2)))))
       }
       return(sqrt(self$root$mu2 + self$alpha^2 - 2*self$alpha*self$root$mu1))
     },

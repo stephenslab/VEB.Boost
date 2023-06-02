@@ -34,6 +34,8 @@
 #' In the case of left-censored data, the left end-point should be 'NA', and in the case of right-censored data, the right end-point should be 'NA'.
 #' If the observation is uncensored, both end-points should be equal to the observed survival time.
 #'
+#' @param Z is an (n x r) binary matrix of treatment assignment indicators, to use with BCF
+#'
 #' @param k is an integer, or a vector of integers of length \code{length(learners)}, for how many terms are in the sum of nodes (for each learner)
 #'
 #' @param d is either an integer, or an integer vector of length \code{k}, or a list of integer vectors of length \code{length(learners)}
@@ -116,8 +118,8 @@
 #' @export
 #'
 
-veb_boost = function(learners, Y, k = 1, d = 1, sigma2 = NULL,
-                     family = c("gaussian", "binomial", "multinomial.bouchard", "multinomial.titsias", "negative.binomial", "poisson.log1pexp", "aft.loglogistic", "ordinal.logistic"),
+veb_boost = function(learners, Y, Z = NULL, k = 1, d = 1, sigma2 = NULL,
+                     family = c("gaussian", "binomial", "multinomial.bouchard", "multinomial.titsias", "negative.binomial", "poisson.log1pexp", "aft.loglogistic", "cox.ph", "ordinal.logistic"),
                      weights = 1, scaleWeights = TRUE, exposure = NULL, tol = NROW(Y) / 10000, verbose = TRUE, maxit = Inf, backfit = FALSE) {
 
   ### Check Inputs ###
@@ -126,8 +128,8 @@ veb_boost = function(learners, Y, k = 1, d = 1, sigma2 = NULL,
   if (grepl("multinomial", family)) {
     Y = as.character(Y)
   }
-  if (!(is.vector(Y) || ((family == 'aft.loglogistic') && (is_valid_matrix(Y)) && (ncol(Y) == 2)))) {
-    stop("'Y' must be a vector (or a matrix with 2 columns for the 'aft.loglogistic' case)")
+  if (!(is.vector(Y) || ((family %in% c('aft.loglogistic', 'cox.ph')) && (is_valid_matrix(Y)) && (ncol(Y) == 2)))) {
+    stop("'Y' must be a vector (or a matrix with 2 columns for the 'aft.loglogistic'/'cox.ph' cases)")
   }
   if (!is.null(sigma2)) {
     if (family != "gaussian") {
@@ -230,7 +232,7 @@ veb_boost = function(learners, Y, k = 1, d = 1, sigma2 = NULL,
   if ((grepl("poisson", family, ignore.case = TRUE) | family == "negative.binomial") && (any(Y < 0) || any(Y %% 1 != 0))) {
     stop("'Y' must be positive integers when using Poisson or negative binomial response")
   }
-  if ((family == "aft.loglogistic")) {
+  if (family == "aft.loglogistic") {
     if (any(Y <= 0, na.rm = TRUE)) {
       stop("Non-NA 'Y' must be positive when using the AFT model")
     }
@@ -239,6 +241,20 @@ veb_boost = function(learners, Y, k = 1, d = 1, sigma2 = NULL,
     }
     if (any(rowSums(is.na(Y)) == 2)) {
       stop("'Y' cannot have rows that are all NA")
+    }
+  }
+  if (family == "cox.ph") {
+    if (any(Y <= 0, na.rm = TRUE)) {
+      stop("Non-NA 'Y' must be positive when using the Cox PH model")
+    }
+    if (any(rowSums(is.na(Y)) == 2)) {
+      stop("'Y' cannot have rows that are all NA")
+    }
+    if (any(is.na(Y[, 1]))) {
+      stop("Left-censoring not currently supported for the Cox PH model")
+    }
+    if (any(Y[, 1] != Y[, 2], na.rm = TRUE)) {
+      stop("Interval-censoring not currently supported for the Cox PH model")
     }
   }
   if (family == "ordinal.logistic") {
@@ -261,6 +277,16 @@ veb_boost = function(learners, Y, k = 1, d = 1, sigma2 = NULL,
     attr(Y, 'not_cens') = (!is.na(rowSums(Y)) & (Y[, 1] == Y[, 2]))
     attr(Y, 'log_Y') = log(Y)
   }
+  if (family == "cox.ph") {
+    attr(Y, 'not_cens') = (!is.na(rowSums(Y)) & (Y[, 1] == Y[, 2]))
+    attr(Y, 'unique_times') = sort(unique(Y[attr(Y, 'not_cens'), 1]))
+    if (any(Y[, 1] < attr(Y, 'unique_times')[1])) {
+      stop("There are censored observations with censoring times less than the smallest observed time; you need to remove these observations")
+    }
+    attr(Y, 'm_k_mat') = Matrix::Diagonal(x = sapply(attr(Y, 'unique_times'), function(t_k) sum(Y[, 1] == t_k & Y[, 2] == t_k)))
+    attr(Y, 'n_k') = sapply(attr(Y, 'unique_times'), function(t_k) sum(Y[, 1] >= t_k))
+    # attr(Y, 'n_k') = nrow(Y) - cumsum(hist(Y[, 1], breaks = c(-Inf, attr(Y, 'unique_times'), Inf), plot = FALSE, right = FALSE)$counts)[-(1+length(attr(Y, 'unique_times')))]
+  }
   if (family == "ordinal.logistic") {
     attr(Y, 'left_cens') = (Y == 1)
     attr(Y, 'right_cens') = (Y == max(Y))
@@ -275,7 +301,8 @@ veb_boost = function(learners, Y, k = 1, d = 1, sigma2 = NULL,
   # if (family != "multinomial") {
   if (!grepl("multinomial", family)) {
     # initialize tree
-    veb_boost_tree = initialize_veb_boost_tree(learners = learners, Y = Y, k = k, d = d, weights = weights, family = family, exposure = exposure)
+    veb_boost_tree = initialize_veb_boost_tree_bcf(learners = learners, Y = Y, Z = Z, k = k, d = d, weights = weights, family = family, exposure = exposure)
+
     if (family == "gaussian") {
       veb_boost_tree$sigma2 = if (is.null(sigma2)) var(Y) else sigma2
     } else if (family == "aft.loglogistic") {
@@ -324,6 +351,9 @@ veb_boost = function(learners, Y, k = 1, d = 1, sigma2 = NULL,
     return(veb_boost_tree)
 
   } else { # else, multinomial case
+    if (!is.null(Z)) {
+      stop("BCF version not supported with multinomial families, please set argument 'Z' to NULL")
+    }
     classes = sort(unique(Y))
     learner_multiclass = VEBBoostMultiClassLearner$new()
     learner_multiclass$family = family
@@ -381,6 +411,8 @@ veb_boost = function(learners, Y, k = 1, d = 1, sigma2 = NULL,
 #' @param Y is a numeric vector response
 #'
 #' @param X_test is an optional (m X p) matrix to be used as the testing data. Posterior mean response is saved in the output's field \code{$pred_mu1}
+#'
+#' @param Z is an (n x r) binary matrix of treatment assignment indicators, to use with BCF
 #'
 #' @param learners is a list of other learners to be used in \code{\link{veb_boost}}
 #'
@@ -454,7 +486,7 @@ veb_boost = function(learners, Y, k = 1, d = 1, sigma2 = NULL,
 #' @export
 #'
 
-veb_boost_stumps = function(X, Y, X_test = NULL, learners = NULL, include_linear = NULL, include_stumps = NULL,
+veb_boost_stumps = function(X, Y, X_test = NULL, Z = NULL, learners = NULL, include_linear = NULL, include_stumps = NULL,
                             num_cuts = ceiling(min(NROW(Y) / 5, max(100, sqrt(NROW(Y))))), k = 1, d = 1,
                             use_quants = TRUE, scale_X = c("sd", "max", "NA"), growMode = c("+*", "+", "*", "NA"), changeToConstant = FALSE,
                             max_log_prior_var = 0, use_optim = TRUE, lin_prior_prob = 0.5, reverse_learners = FALSE, nthreads = ceiling(parallel::detectCores(logical = TRUE) / 2), ...) {
@@ -471,14 +503,29 @@ veb_boost_stumps = function(X, Y, X_test = NULL, learners = NULL, include_linear
   if (!is.null(X_test) && !is_valid_matrix(X_test)) {
     stop("'X_test' must be a numeric matrix")
   }
+  if (!is.null(Z) && !is_valid_matrix(Z)) {
+    stop("'Z' must be a numeric matrix")
+  }
+  if (!is.null(Z) && any(Z != Z^2)) {
+    stop("'Z' must be a binary numeric matrix (i.e. all 0/1)")
+  }
   if (any(is.na(X))) {
     stop("'X' cannot have any NAs. Please handle them accordingly first")
   }
   if (!is.null(X_test) && any(is.na(X_test))) {
     stop("'X_test' cannot have any NAs. Please handle them accordingly first")
   }
+  if (!is.null(Z) && any(is.na(Z))) {
+    stop("'Z' cannot have any NAs. Please handle them accordingly first")
+  }
+  if (!is.null(Z) && any(Z != Z^2)) {
+    stop("'Z' must be a binary numeric matrix (i.e. all 0/1)")
+  }
   if (NROW(X) != NROW(Y)) {
     stop("'X' and 'Y' must have the same number of observations/rows")
+  }
+  if (!is.null(Z) && (NROW(X) != NROW(Z))) {
+    stop("'X' and 'Z' must have the same number of observations/rows")
   }
   p = ncol(X)
   # check other learners
@@ -588,8 +635,7 @@ veb_boost_stumps = function(X, Y, X_test = NULL, learners = NULL, include_linear
     d = rev(d)
   }
   # Run
-  veb.fit = veb_boost(learners = learners, Y = Y, k = k, d = d, ...)
+  veb.fit = veb_boost(learners = learners, Y = Y, Z = Z, k = k, d = d, ...)
 
   return(veb.fit)
 }
-
