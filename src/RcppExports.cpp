@@ -88,15 +88,15 @@ BEGIN_RCPP
 END_RCPP
 }
 // predFnSusieStumps_cpp
-arma::vec predFnSusieStumps_cpp(XPtr<stumpsmatrix::StumpsMatrix> xp_new, List currentFit, int moment);
-RcppExport SEXP _VEB_Boost_predFnSusieStumps_cpp(SEXP xp_newSEXP, SEXP currentFitSEXP, SEXP momentSEXP) {
+arma::vec predFnSusieStumps_cpp(XPtr<stumpsmatrix::StumpsMatrix> X_test, List currentFit, int moment);
+RcppExport SEXP _VEB_Boost_predFnSusieStumps_cpp(SEXP X_testSEXP, SEXP currentFitSEXP, SEXP momentSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< XPtr<stumpsmatrix::StumpsMatrix> >::type xp_new(xp_newSEXP);
+    Rcpp::traits::input_parameter< XPtr<stumpsmatrix::StumpsMatrix> >::type X_test(X_testSEXP);
     Rcpp::traits::input_parameter< List >::type currentFit(currentFitSEXP);
     Rcpp::traits::input_parameter< int >::type moment(momentSEXP);
-    rcpp_result_gen = Rcpp::wrap(predFnSusieStumps_cpp(xp_new, currentFit, moment));
+    rcpp_result_gen = Rcpp::wrap(predFnSusieStumps_cpp(X_test, currentFit, moment));
     return rcpp_result_gen;
 END_RCPP
 }
