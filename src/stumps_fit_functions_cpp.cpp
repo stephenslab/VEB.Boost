@@ -103,8 +103,7 @@ double gr(const double lV, const vec& tau_no_V, const vec& nu2, const vec& prior
 
 // [[Rcpp::export]]
 List weighted_SER_cpp(XPtr<stumpsmatrix::StumpsMatrix> xp, arma::vec& Y, arma::vec& sigma2, Nullable<List> init = R_NilValue, double max_lV = 0.0, double lin_prior_prob = 0.5, bool use_optim = true) {
-    Rcpp::Rcout << "Starting weighted_SER_cpp" << std::endl;
-    arma::vec s2 = arma::ones(Y.size());
+  arma::vec s2 = arma::ones(Y.size());
   if (sigma2.size() == 1) {
     s2 *= sigma2[0];
   } else {
@@ -134,7 +133,8 @@ List weighted_SER_cpp(XPtr<stumpsmatrix::StumpsMatrix> xp, arma::vec& Y, arma::v
 
   arma::vec tau_no_V = xp.get()->compute_X2ty(inv_sigma2, X_avg);
   arma::vec nu = xp.get()->compute_Xty(Y_cent / s2, X_avg);
-  arma::vec nu2 = arma::square(nu);
+  //arma::vec nu2 = arma::square(nu);
+  arma::vec nu2 = std::pow(nu, 2);
   
   /*
   arma::mat X_avg_tau_no_V_nu = xp.get()->compute_X_avg_tau_no_V_nu(w, inv_sigma2, Y_cent);
@@ -220,7 +220,8 @@ List weighted_SER_cpp(XPtr<stumpsmatrix::StumpsMatrix> xp, arma::vec& Y, arma::v
   }
   
   arma::vec beta_post_1 = alpha % mu;
-  arma::vec beta_post_2 = alpha % (arma::square(mu) + sigma2_post);
+  //arma::vec beta_post_2 = alpha % (arma::square(mu) + sigma2_post);
+  arma::vec beta_post_2 = alpha % (std::pow(mu, 2) + sigma2_post);
 
   arma::vec Xb_post = xp.get()->compute_Xb(beta_post_1, X_avg); 
   //arma::vec Xb_post = xp.get()->compute_Xb(beta_post_1, X_avg_tau_no_V_nu.col(0));
