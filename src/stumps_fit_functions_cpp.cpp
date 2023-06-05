@@ -111,7 +111,8 @@ List weighted_SER_cpp(XPtr<stumpsmatrix::StumpsMatrix> xp, arma::vec& Y, arma::v
   }
 
   arma::vec inv_sigma2 = 1 / s2;
-  inv_sigma2.replace(arma::datum::nan, 0.0);
+  inv_sigma2[arma::find_nan(inv_sigma2)] = 0.0;
+  //inv_sigma2.replace(arma::datum::nan, 0.0);
   double sum_inv_sigma2 = sum(inv_sigma2);
   arma::vec w = inv_sigma2 / sum_inv_sigma2;
   //double lV_init;
