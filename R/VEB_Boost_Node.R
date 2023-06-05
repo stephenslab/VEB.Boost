@@ -76,7 +76,7 @@ VEBBoostNode <- R6Class(
         } else { # else, update inputs
           currentInputs = self$updateCurrentInputs(currentInputs)
         }
-        if (!self$isLocked && any(is.infinite(currentInputs$sigma2))) { # if somehow variances become infinite, just a safeguard....
+        if (!self$isLocked && all(is.infinite(currentInputs$sigma2))) { # if somehow variances become infinite, just a safeguard....
           self$isLocked = TRUE
           self$learner = constLearner
         }
