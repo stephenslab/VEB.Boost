@@ -133,8 +133,7 @@ List weighted_SER_cpp(XPtr<stumpsmatrix::StumpsMatrix> xp, arma::vec& Y, arma::v
 
   arma::vec tau_no_V = xp.get()->compute_X2ty(inv_sigma2, X_avg);
   arma::vec nu = xp.get()->compute_Xty(Y_cent / s2, X_avg);
-  arma::vec nu2 = arma::square(nu2);
-  Rcpp::Rcout << arma::join_rows(tau_no_V, nu, nu2) << std::endl;
+  arma::vec nu2 = arma::square(nu);
   /*
   arma::mat X_avg_tau_no_V_nu = xp.get()->compute_X_avg_tau_no_V_nu(w, inv_sigma2, Y_cent);
   arma::vec nu2 = X_avg_tau_no_V_nu.col(2) % X_avg_tau_no_V_nu.col(2);
@@ -166,10 +165,12 @@ List weighted_SER_cpp(XPtr<stumpsmatrix::StumpsMatrix> xp, arma::vec& Y, arma::v
   //opt.minimize(nll, init_lV);
   //double lV = opt.par()[0];
   double V;
+  /*
   double lV_init = std::min(0.0, max_lV);
   if (init.as().containsElementNamed("V")) {
       lV_init = log((double)init.as()["V"]);
   }
+  */
   if (use_optim || init.isNull() || !init.as().containsElementNamed("V")) { // if using Brent method to optimize for V....
       Environment r_stats("package:stats");
       Function r_optimize = r_stats["optimize"];

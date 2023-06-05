@@ -760,6 +760,13 @@ VEBBoostNode <- R6Class(
       }
     },
 
+    isTrtLearner = function(value) { # true if top node that defines treatment learner
+      if (!missing(value)) {
+        stop("`$isTrtLearner` cannot be modified directly", call. = FALSE)
+      }
+      return(!self$isRoot && identical(self$siblings[[1]]$learner$fitFunction, fitFnTrt) && identical(self$siblings[[1]]$learner$predFunction, predFnTrt))
+    }
+
     pred_mu1 = function(value) { # predicted first moment given new data
       if (!missing(value)) {
         if (self$isLeaf) {
