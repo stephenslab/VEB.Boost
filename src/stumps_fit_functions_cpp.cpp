@@ -129,12 +129,17 @@ List weighted_SER_cpp(XPtr<stumpsmatrix::StumpsMatrix> xp, arma::vec& Y, arma::v
 
   double Y_avg = arma::sum(Y % w);
   arma::vec Y_cent = Y - Y_avg;
+  arma::vec X_avg = xp.get()->compute_Xty(w, arma::zeros(xp.get()->ncol));
 
-   arma::mat X_avg_tau_no_V_nu = xp.get()->compute_X_avg_tau_no_V_nu(w, inv_sigma2, Y_cent);
-   arma::vec nu2 = X_avg_tau_no_V_nu.col(2) % X_avg_tau_no_V_nu.col(2);
-   //arma::vec X_avg = X_avg_tau_no_V_nu.col(0);
-   //arma::vec tau_no_V = X_avg_tau_no_V_nu.col(1);
-   //arma::vec nu = X_avg_tau_no_V_nu.col(2);
+  arma::vec tau_no_V = xp.get()->compute_X2ty(inv_sigma2, X_avg);
+  arma::vec nu = xp.get()->compute_Xty(Y_cent / s2, X_avg);
+  /*
+  arma::mat X_avg_tau_no_V_nu = xp.get()->compute_X_avg_tau_no_V_nu(w, inv_sigma2, Y_cent);
+  arma::vec nu2 = X_avg_tau_no_V_nu.col(2) % X_avg_tau_no_V_nu.col(2);
+  //arma::vec X_avg = X_avg_tau_no_V_nu.col(0);
+  //arma::vec tau_no_V = X_avg_tau_no_V_nu.col(1);
+  //arma::vec nu = X_avg_tau_no_V_nu.col(2);
+  */
   
   /*
   arma::vec X_avg = xp.get()->compute_Xty(w, arma::zeros(xp.get()->ncol));
@@ -166,7 +171,9 @@ List weighted_SER_cpp(XPtr<stumpsmatrix::StumpsMatrix> xp, arma::vec& Y, arma::v
   if (use_optim || init.isNull() || !init.as().containsElementNamed("V")) { // if using Brent method to optimize for V....
       Environment r_stats("package:stats");
       Function r_optimize = r_stats["optimize"];
-      List optim_res = r_optimize(Named("f") = InternalFunction(&nll), Named("tau_no_V") = X_avg_tau_no_V_nu.col(1), Named("nu2") = nu2,
+      /*List optim_res = r_optimize(Named("f") = InternalFunction(&nll), Named("tau_no_V") = X_avg_tau_no_V_nu.col(1), Named("nu2") = nu2,
+          Named("prior_weights") = prior_weights, Named("lower") = -15.0, Named("upper") = max_lV);*/
+      List optim_res = r_optimize(Named("f") = InternalFunction(&nll), Named("tau_no_V") = tau_no_V, Named("nu") = nu,
           Named("prior_weights") = prior_weights, Named("lower") = -15.0, Named("upper") = max_lV);
       /*
       Function r_optim = r_stats["optim"];
@@ -189,14 +196,16 @@ List weighted_SER_cpp(XPtr<stumpsmatrix::StumpsMatrix> xp, arma::vec& Y, arma::v
       V = (double)init.as()["V"];
   }
   
-  arma::vec tau = X_avg_tau_no_V_nu.col(1) + (1 / V);
+  arma::vec tau = tau_no_V + (1 / V);
+  //arma::vec tau = X_avg_tau_no_V_nu.col(1) + (1 / V);
 
   arma::vec alpha = arma::log(prior_weights / arma::sqrt(tau)) + (0.5 * nu2 / tau);
   alpha -= arma::max(alpha);
   alpha = arma::exp(alpha); //alpha.transform([](double val) { return(std::exp(val)); });
   alpha /= arma::sum(alpha);
 
-  arma::vec mu = X_avg_tau_no_V_nu.col(2) / tau;
+  arma::vec mu = nu / tau; 
+  //arma::vec mu = X_avg_tau_no_V_nu.col(2) / tau;
   
   arma::vec sigma2_post = 1 / tau;
 
@@ -208,15 +217,19 @@ List weighted_SER_cpp(XPtr<stumpsmatrix::StumpsMatrix> xp, arma::vec& Y, arma::v
   arma::vec beta_post_1 = alpha % mu;
   arma::vec beta_post_2 = alpha % ((mu % mu) + sigma2_post);
 
-  arma::vec Xb_post = xp.get()->compute_Xb(beta_post_1, X_avg_tau_no_V_nu.col(0));
+  arma::vec Xb_post = xp.get()->compute_Xb(beta_post_1, X_avg); 
+  //arma::vec Xb_post = xp.get()->compute_Xb(beta_post_1, X_avg_tau_no_V_nu.col(0));
 
   arma::vec mu1 = Y_avg + Xb_post;
-  arma::vec mu2 = std::pow(Y_avg, 2) + 2*Y_avg*Xb_post + xp.get()->compute_X2b(beta_post_2, X_avg_tau_no_V_nu.col(0));
+  arma::vec mu2 = std::pow(Y_avg, 2) + 2 * Y_avg * Xb_post + xp.get()->compute_X2b(beta_post_2, X_avg); 
+  //arma::vec mu2 = std::pow(Y_avg, 2) + 2*Y_avg*Xb_post + xp.get()->compute_X2b(beta_post_2, X_avg_tau_no_V_nu.col(0));
 
   double kl_div = calc_KL_cpp(mu, alpha, sigma2_post, prior_weights, V);
   
   List res = List::create(Named("mu1") = mu1, Named("mu2") = mu2, Named("KL_div") = kl_div, Named("alpha") = alpha, Named("mu") = mu,
-                          Named("sigma2_post") = sigma2_post, Named("V") = V, Named("X_avg") = X_avg_tau_no_V_nu.col(0), Named("Y_avg") = Y_avg, Named("prior_weights") = prior_weights);
+      Named("sigma2_post") = sigma2_post, Named("V") = V, Named("X_avg") = X_avg, Named("Y_avg") = Y_avg, Named("prior_weights") = prior_weights); 
+  /*List res = List::create(Named("mu1") = mu1, Named("mu2") = mu2, Named("KL_div") = kl_div, Named("alpha") = alpha, Named("mu") = mu,
+                          Named("sigma2_post") = sigma2_post, Named("V") = V, Named("X_avg") = X_avg_tau_no_V_nu.col(0), Named("Y_avg") = Y_avg, Named("prior_weights") = prior_weights);*/
   return(res);
 }
 
