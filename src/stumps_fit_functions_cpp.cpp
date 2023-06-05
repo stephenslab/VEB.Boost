@@ -38,7 +38,7 @@ XPtr<stumpsmatrix::StumpsMatrix> make_stumps_test_matrix_sp_cpp(arma::sp_mat& X,
 
 // compute KL-divergence
 double calc_KL_cpp(vec& mu, vec& alpha, vec& sigma2, vec& prior_weights, double V) {
-  vec KL_div = alpha % (log((alpha / prior_weights) % sqrt(V / sigma2)) - .5 + ((sigma2 + (mu % mu)) / (2 * V)));
+  arma::vec KL_div = alpha % (log((alpha / prior_weights) % sqrt(V / sigma2)) - .5 + ((sigma2 + (mu % mu)) / (2 * V)));
   KL_div.elem( find(alpha == 0.0) ).zeros();
   // KL_div.elem( find(approx_equal(alpha, 0.0, "absdiff", 1e-12)) ) = 0.0;
   // KL_div.elem( find(find_nonfinite(KL_div)) ).zeros();
@@ -63,10 +63,10 @@ double calc_KL_cpp(vec& mu, vec& alpha, vec& sigma2, vec& prior_weights, double 
 
 // negative log-likelihood for log-prior variance, lV
 double nll(const double lV, const vec& tau_no_V, const vec& nu2, const vec& prior_weights) {
-  vec tau = tau_no_V + exp(-lV);
-  vec m = 0.5 * (-arma::log(tau) + (nu2 / tau));
+  arma::vec tau = tau_no_V + std::exp(-lV);
+  arma::vec m = 0.5 * (-arma::log(tau) + (nu2 / tau));
   double m_max = arma::max(m);
-  vec w = arma::exp(m - m_max);
+  arma::vec w = arma::exp(m - m_max);
   return((0.5 * lV) - m_max - log(arma::sum(prior_weights % w)));
 }
 
