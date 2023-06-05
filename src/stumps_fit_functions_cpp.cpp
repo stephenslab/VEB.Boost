@@ -134,6 +134,7 @@ List weighted_SER_cpp(XPtr<stumpsmatrix::StumpsMatrix> xp, arma::vec& Y, arma::v
   arma::vec tau_no_V = xp.get()->compute_X2ty(inv_sigma2, X_avg);
   arma::vec nu = xp.get()->compute_Xty(Y_cent / s2, X_avg);
   arma::vec nu2 = arma::square(nu2);
+  Rcpp::Rcout << arma::join_rows(tau_no_V, nu, nu2) << std::endl;
   /*
   arma::mat X_avg_tau_no_V_nu = xp.get()->compute_X_avg_tau_no_V_nu(w, inv_sigma2, Y_cent);
   arma::vec nu2 = X_avg_tau_no_V_nu.col(2) % X_avg_tau_no_V_nu.col(2);
@@ -216,7 +217,7 @@ List weighted_SER_cpp(XPtr<stumpsmatrix::StumpsMatrix> xp, arma::vec& Y, arma::v
   }
   
   arma::vec beta_post_1 = alpha % mu;
-  arma::vec beta_post_2 = alpha % ((mu % mu) + sigma2_post);
+  arma::vec beta_post_2 = alpha % (arma::square(mu) + sigma2_post);
 
   arma::vec Xb_post = xp.get()->compute_Xb(beta_post_1, X_avg); 
   //arma::vec Xb_post = xp.get()->compute_Xb(beta_post_1, X_avg_tau_no_V_nu.col(0));
