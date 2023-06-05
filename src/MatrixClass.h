@@ -783,6 +783,7 @@ namespace stumpsmatrix {
       #endif
       
       arma::vec compute_Xb(const arma::vec& b, const arma::vec& X_avg) {
+        b.replace(arma::datum::nan, 0.0);
         arma::vec Xb(nrow, arma::fill::zeros);
         #if defined(_OPENMP)
           #pragma omp parallel for reduction(+:Xb) schedule(dynamic)
@@ -795,6 +796,7 @@ namespace stumpsmatrix {
       }
       
       arma::vec compute_Xty(const arma::vec& y, const arma::vec& X_avg) {
+        y.replace(arma::datum::nan, 0.0);
         arma::vec Xty(ncol);
         #if defined(_OPENMP)
           #pragma omp parallel for schedule(dynamic)
@@ -806,6 +808,7 @@ namespace stumpsmatrix {
       }
       
       arma::vec compute_X2b(const arma::vec& b, const arma::vec& X_avg) {
+        b.replace(arma::datum::nan, 0.0);
         arma::vec X2b(nrow, arma::fill::zeros);
         #if defined(_OPENMP)
           #pragma omp parallel for reduction(+:X2b) schedule(dynamic)
@@ -818,6 +821,7 @@ namespace stumpsmatrix {
       }
       
       arma::vec compute_X2ty(const arma::vec& y, const arma::vec& X_avg) {
+        y.replace(arma::datum::nan, 0.0);
         arma::vec X2ty(ncol);
         #if defined(_OPENMP)
           #pragma omp parallel for schedule(dynamic)

@@ -177,7 +177,7 @@ List weighted_SER_cpp(XPtr<stumpsmatrix::StumpsMatrix> xp, arma::vec& Y, arma::v
       Function r_optimize = r_stats["optimize"];
       /*List optim_res = r_optimize(Named("f") = InternalFunction(&nll), Named("tau_no_V") = X_avg_tau_no_V_nu.col(1), Named("nu2") = nu2,
           Named("prior_weights") = prior_weights, Named("lower") = -15.0, Named("upper") = max_lV);*/
-      List optim_res = r_optimize(Named("f") = InternalFunction(&nll), Named("tau_no_V") = tau_no_V, Named("nu2") = nu,
+      List optim_res = r_optimize(Named("f") = InternalFunction(&nll), Named("tau_no_V") = tau_no_V, Named("nu2") = nu2,
           Named("prior_weights") = prior_weights, Named("lower") = -15.0, Named("upper") = max_lV);
       /*
       Function r_optim = r_stats["optim"];
