@@ -133,8 +133,7 @@ List weighted_SER_cpp(XPtr<stumpsmatrix::StumpsMatrix> xp, arma::vec& Y, arma::v
 
   arma::vec tau_no_V = xp.get()->compute_X2ty(inv_sigma2, X_avg);
   arma::vec nu = xp.get()->compute_Xty(Y_cent / s2, X_avg);
-  //arma::vec nu2 = arma::square(nu);
-  arma::vec nu2 = arma::pow(nu, 2);
+  arma::vec nu2 = arma::square(nu);
   
   /*
   arma::mat X_avg_tau_no_V_nu = xp.get()->compute_X_avg_tau_no_V_nu(w, inv_sigma2, Y_cent);
@@ -178,7 +177,7 @@ List weighted_SER_cpp(XPtr<stumpsmatrix::StumpsMatrix> xp, arma::vec& Y, arma::v
       Function r_optimize = r_stats["optimize"];
       /*List optim_res = r_optimize(Named("f") = InternalFunction(&nll), Named("tau_no_V") = X_avg_tau_no_V_nu.col(1), Named("nu2") = nu2,
           Named("prior_weights") = prior_weights, Named("lower") = -15.0, Named("upper") = max_lV);*/
-      List optim_res = r_optimize(Named("f") = InternalFunction(&nll), Named("tau_no_V") = tau_no_V, Named("nu2") = nu2,
+      List optim_res = r_optimize(Named("f") = InternalFunction(&nll), Named("tau_no_V") = tau_no_V, Named("nu2") = nu,
           Named("prior_weights") = prior_weights, Named("lower") = -15.0, Named("upper") = max_lV);
       /*
       Function r_optim = r_stats["optim"];
@@ -220,8 +219,7 @@ List weighted_SER_cpp(XPtr<stumpsmatrix::StumpsMatrix> xp, arma::vec& Y, arma::v
   }
   
   arma::vec beta_post_1 = alpha % mu;
-  //arma::vec beta_post_2 = alpha % (arma::square(mu) + sigma2_post);
-  arma::vec beta_post_2 = alpha % (arma::pow(mu, 2) + sigma2_post);
+  arma::vec beta_post_2 = alpha % (arma::square(mu) + sigma2_post);
 
   arma::vec Xb_post = xp.get()->compute_Xb(beta_post_1, X_avg); 
   //arma::vec Xb_post = xp.get()->compute_Xb(beta_post_1, X_avg_tau_no_V_nu.col(0));
