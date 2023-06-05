@@ -62,9 +62,9 @@ double calc_KL_cpp(vec& mu, vec& alpha, vec& sigma2, vec& prior_weights, double 
 }
 
 // negative log-likelihood for log-prior variance, lV
-double nll(const double lV, const vec& tau_no_V, const vec& nu2, const vec& prior_weights) {
+double nll(const double lV, const vec& tau_no_V, const vec& nu, const vec& prior_weights) {
   arma::vec tau = tau_no_V + std::exp(-lV);
-  arma::vec m = 0.5 * (-arma::log(tau) + (nu2 / tau));
+  arma::vec m = 0.5 * (-arma::log(tau) + (nu / tau));
   double m_max = arma::max(m);
   arma::vec w = arma::exp(m - m_max);
   return((0.5 * lV) - m_max - log(arma::sum(prior_weights % w)));
@@ -179,7 +179,7 @@ List weighted_SER_cpp(XPtr<stumpsmatrix::StumpsMatrix> xp, arma::vec& Y, arma::v
       Function r_optimize = r_stats["optimize"];
       /*List optim_res = r_optimize(Named("f") = InternalFunction(&nll), Named("tau_no_V") = X_avg_tau_no_V_nu.col(1), Named("nu2") = nu2,
           Named("prior_weights") = prior_weights, Named("lower") = -15.0, Named("upper") = max_lV);*/
-      List optim_res = r_optimize(Named("f") = InternalFunction(&nll), Named("tau_no_V") = tau_no_V, Named("nu2") = nu2,
+      List optim_res = r_optimize(Named("f") = InternalFunction(&nll), Named("tau_no_V") = tau_no_V, Named("nu") = nu2,
           Named("prior_weights") = prior_weights, Named("lower") = -15.0, Named("upper") = max_lV);
       /*
       Function r_optim = r_stats["optim"];
