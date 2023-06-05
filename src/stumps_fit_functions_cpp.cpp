@@ -132,9 +132,7 @@ List weighted_SER_cpp(XPtr<stumpsmatrix::StumpsMatrix> xp, arma::vec& Y, arma::v
   arma::vec X_avg = xp.get()->compute_Xty(w, arma::zeros(xp.get()->ncol));
 
   arma::vec tau_no_V = xp.get()->compute_X2ty(inv_sigma2, X_avg);
-  arma::vec Y_cent_scale = Y_cent / s2;
-  Y_cent_scale.replace(arma::datum::nan, 0.0);
-  arma::vec nu = xp.get()->compute_Xty(Y_cent_scale, X_avg);
+  arma::vec nu = xp.get()->compute_Xty(Y_cent / s2, X_avg);
   arma::vec nu2 = arma::square(nu);
   
   /*
