@@ -112,7 +112,7 @@ List weighted_SER_cpp(XPtr<stumpsmatrix::StumpsMatrix> xp, arma::vec& Y, arma::v
 
   arma::vec inv_sigma2 = 1 / s2;
   inv_sigma2.replace(arma::datum::nan, 0.0);
-  double sum_inv_sigma2 = sum(inv_sigma2);
+  double sum_inv_sigma2 = arma::sum(inv_sigma2);
   arma::vec w = inv_sigma2 / sum_inv_sigma2;
   //double lV_init;
   arma::vec prior_weights;
@@ -129,10 +129,12 @@ List weighted_SER_cpp(XPtr<stumpsmatrix::StumpsMatrix> xp, arma::vec& Y, arma::v
 
   double Y_avg = arma::sum(Y % w);
   arma::vec Y_cent = Y - Y_avg;
+  arma::vec Y_cent_s2 = Y_cent / s2;
+  Y_cent_s2.replace(arma::datum::nan, 0.0);
   arma::vec X_avg = xp.get()->compute_Xty(w, arma::zeros(xp.get()->ncol));
 
   arma::vec tau_no_V = xp.get()->compute_X2ty(inv_sigma2, X_avg);
-  arma::vec nu = xp.get()->compute_Xty(Y_cent / s2, X_avg);
+  arma::vec nu = xp.get()->compute_Xty(Y_cent_s2, X_avg);
   arma::vec nu2 = arma::square(nu);
   
   /*
