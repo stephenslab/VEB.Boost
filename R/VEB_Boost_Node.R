@@ -91,7 +91,9 @@ VEBBoostNode <- R6Class(
           currentInputs$Y = currentInputs$Y + self$siblings[[1]]$mu1
           currentInputs$sigma2 = currentInputs$sigma2
         } else {
-          currentInputs$Y = currentInputs$Y / (self$siblings[[1]]$mu1 / self$siblings[[1]]$mu2)
+          scaling_factor = self$siblings[[1]]$mu1 / self$siblings[[1]]$mu2
+          scaling_factor[self$siblings[[1]]$mu1 == self$siblings[[1]]$mu2] = 1 # for case when both are 0
+          currentInputs$Y = currentInputs$Y / (scaling_factor)
           currentInputs$sigma2 = currentInputs$sigma2 * self$siblings[[1]]$mu2
         }
       }
@@ -261,13 +263,13 @@ VEBBoostNode <- R6Class(
         }
         # if only adding or multiplying, and we already added or multiplied with another node, and that node is locked, then lock learner
         if ((base_learner$learner$growMode %in% c("+", "*")) && (base_learner$parent$operator == base_learner$learner$growMode) && base_learner$siblings[[1]]$isLocked) {
-          if (!identical(base_learner$siblings[[1]]$learner$predFunction, predFnTrt)) {
+          if (!self$isTrtLearner) {
             base_learner$isLocked = TRUE
           }
         }
         # if "+*", and already if a "+*" part where both "+" and "*" parts or locked, then lock learner
         if ((base_learner$learner$growMode == "+*") && (base_learner$parent$operator == "*") && base_learner$siblings[[1]]$isLocked && (base_learner$parent$parent$operator == "+") && base_learner$parent$siblings[[1]]$isLocked) {
-          if (!identical(base_learner$siblings[[1]]$learner$predFunction, predFnTrt)) {
+          if (!self$isTrtLearner) {
             base_learner$isLocked = TRUE
           }
         }
