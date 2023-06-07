@@ -58,12 +58,12 @@ stumpsVariableImportance = function(veb_fit, method = c("pip", "sum"), scale_by_
     lapply(veb_fit$leaves, function(x) try({getAlphaByVar(x$learner$X, x$learner$currentFit)}, silent = T))
   }, silent = TRUE)
 
-  if (class(alpha_combined) == "try-error") {
+  if (inherits(alpha_combined, "try-error")) {
     stop("An error occurred. Be sure that `veb_fit` is the output from a call to `veb_boost_stumps`")
   }
 
   kl_div_leaves = sapply(veb_fit$leaves, function(x) x$KL_div)
-  alpha_combined = lapply(alpha_combined, function(x) if (class(x)[1] == 'try-error') {return(NULL)} else {return(x)})
+  alpha_combined = lapply(alpha_combined, function(x) if (inherits(class(x)[1], 'try-error')) {return(NULL)} else {return(x)})
   is_null_alpha = sapply(alpha_combined, is.null)
   kl_div_leaves = kl_div_leaves[!is_null_alpha]
   alpha_combined = do.call(cbind, alpha_combined)
@@ -115,7 +115,7 @@ predict_veb_boost = function(veb_fit, X_test_list, moment = c(1, 2)) {
   if (!identical(moment, 1) && !identical(moment, 2) && !identical(moment, c(1, 2))) {
     stop("'moment' must be either 1, 2, or c(1, 2)")
   }
-  if (class(X_test_list) != "list") {
+  if (!inherits(X_test_list, "list")) {
     stop("'X_test_list' must be a list")
   }
   combine_full_nodes = list()

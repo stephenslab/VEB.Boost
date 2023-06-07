@@ -22,11 +22,11 @@ weighted.mr.ash = function(X, Y, sigma2, currentFit = NULL) {
 
   # have to scale sa2, because it is actually scaled in terms of response, I believe
   beta.init = try({rowSums(init$mr.ash.post$phi * init$mr.ash.post$m)}, silent = T)
-  if (class(beta.init) == "try-error") {
+  if (inherits(beta.init, "try-error")) {
     beta.init = NULL
   }
   pi.init = try({currentFit$prior_pi})
-  if (class(pi.init) == "try-error") {
+  if (inherits(pi.init, "try-error")) {
     pi.init = NULL
   }
   # mr.ash.fit = mr.ash(X = X_tilde, y = Y_tilde, sa2 = 1 * (2^(0.05*(0:29)) - 1)^2, max.iter = 100, beta.init = beta.init, pi = pi.init, update.sigma2 = FALSE, sigma2 = 1, standardize = FALSE, intercept = FALSE)

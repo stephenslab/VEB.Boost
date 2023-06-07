@@ -161,23 +161,23 @@ veb_boost = function(learners, Y, k = 1, d = 1, sigma2 = NULL,
     stop("'scaleWeights' must be either TRUE or FALSE")
   }
   # learner object
-  if (class(learners) != "list") {
+  if (!inherits(learners, "list")) {
     stop("'learners' must be a list of learners")
   }
   for (learner in learners) {
-    if (class(learner$fitFunction) != "function") {
+    if (!inherits(learner$fitFunction, "function")) {
       stop("'$fitFunction' must be a function")
     }
     if (!identical(tolower(names(formals(learner$fitFunction))), c("x", "y", "sigma2", "currentfit"))) {
       stop("'$fitFunction' must take in arguments 'X', 'Y', 'sigma2', and 'currentfit' (in that order, case insensitive)")
     }
-    if (class(learner$predFunction) != "function") {
+    if (!inherits(learner$predFunction, "function")) {
       stop("'$predFunction' must be a function")
     }
     if (!identical(tolower(names(formals(learner$predFunction))), c("x_test", "currentfit", "moment"))) {
       stop("'$predFunction' must take in arguments 'X_test', 'currentFit', and 'moment' (in that order, case insensitive)")
     }
-    if (class(learner$constCheckFunction) != "function") {
+    if (!inherits(learner$constCheckFunction, "function")) {
       stop("'$constCheckFunction' must be a function")
     }
     if (tolower(names(formals(learner$constCheckFunction))) != "currentfit") {

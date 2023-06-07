@@ -33,7 +33,7 @@ initialize_veb_boost_tree = function(learners, Y, k = 1, d = 1, weights = 1,
   } else if (length(k) != length(learners)) {
     stop("'k' must be of length 1 or 'length(learners)'")
   }
-  if (class(d) != "list") {
+  if (!inherits(d, "list")) {
     if (length(d) == 1) {
       d = lapply(k, function(j) rep(d, j))
     } else {
