@@ -280,8 +280,14 @@ initialize_veb_boost_tree_bcf = function(learners, Y, Z = NULL, k = 1, d = 1, we
   if (!identical(d, 1)) {
     stop("Only 'd = 1' is currently supported for BCF")
   }
-  if (!identical(k, 1)) {
-    stop("Only 'k = 1' is currently supported for BCF")
+  # if (!identical(k, 1)) {
+  #   stop("Only 'k = 1' is currently supported for BCF")
+  # }
+  if (!(length(k) %in% c(1, ncol(Z)))) {
+    stop("'k' must be of length 1 or 'ncol(Z)'")
+  }
+  if (length(k) == 1) {
+    k = rep(k, ncol(Z))
   }
 
   # start by making treatment indicator learners for each treatment
@@ -290,15 +296,20 @@ initialize_veb_boost_tree_bcf = function(learners, Y, Z = NULL, k = 1, d = 1, we
   veb_boost_learner = VEBBoostNode$new("mu_0", learner = trt_learners[[1]])
   veb_boost_learner$Y = Y
   veb_boost_learner$my_class_index = my_class_index
-  for (i in 1:ceiling(log2(ncol(Z)))) {
-    base_learners = veb_boost_learner$leaves
-    for (base_learner in base_learners) {
-      if (base_learner$root$leafCount >= ncol(Z)) {
-        break
-      }
-      add_learner = VEBBoostNode$new(paste("mu_", base_learner$root$leafCount, sep = ""), learner = trt_learners[[base_learner$root$leafCount + 1]])
-      base_learner$AddSiblingVEB(add_learner, "+", paste("combine_", base_learner$root$leafCount, sep = ""))
-    }
+  # for (i in 1:ceiling(log2(ncol(Z)))) {
+  #   base_learners = veb_boost_learner$leaves
+  #   for (base_learner in base_learners) {
+  #     if (base_learner$root$leafCount >= ncol(Z)) {
+  #       break
+  #     }
+  #     add_learner = VEBBoostNode$new(paste("mu_", base_learner$root$leafCount, sep = ""), learner = trt_learners[[base_learner$root$leafCount + 1]])
+  #     base_learner$AddSiblingVEB(add_learner, "+", paste("combine_", base_learner$root$leafCount, sep = ""))
+  #   }
+  # }
+  for (i in 2:ncol(Z)) {
+    base_learner = tail(veb_boost_learner$leaves, 1)[[1]]
+    add_learner = VEBBoostNode$new(paste("mu_", i-1, sep = ""), learner = trt_learners[[i]])
+    base_learner$AddSiblingVEB(add_learner, "+", paste("combine_", base_learner$root$leafCount, sep = ""))
   }
 
 
@@ -325,9 +336,23 @@ initialize_veb_boost_tree_bcf = function(learners, Y, Z = NULL, k = 1, d = 1, we
   base_learners = veb_boost_learner$leaves
   for (branch in base_learners) {
     j = as.numeric(gsub("mu_", "", branch$name)) + 1 # index of inputs to use for this learner
+    kk = k[j]
     mult_learner = VEBBoostNode$new(paste("mu_", branch$root$leafCount, sep = ""), learner = learners[[j]])
     mult_learner$learner$currentFit = list(mu1 = 1, mu2 = 1, KL_div = 0)
     branch$AddSiblingVEB(mult_learner, "*", paste("combine_", branch$root$leafCount, sep = ""))
+
+    for (i in 1:ceiling(log2(kk))) {
+      base_learners = branch$leaves[-1]
+      for (base_learner in base_learners) {
+        if (branch$leafCount >= kk+1) {
+          break
+        }
+        add_learner = VEBBoostNode$new(paste("mu_", base_learner$root$leafCount, sep = ""), learner = learners[[j]])
+        add_learner$learner$currentFit = list(mu1 = 0, mu2 = 1, KL_div = 0)
+        base_learner$AddSiblingVEB(add_learner, "+", paste("combine_", base_learner$root$leafCount, sep = ""))
+      }
+    }
+
   }
 
   veb_boost_learner$family = family

@@ -146,8 +146,11 @@ veb_boost = function(learners, Y, Z = NULL, k = 1, d = 1, sigma2 = NULL,
   if (any(k < 1) || any(k %% 1 != 0)) {
     stop("'k' must be a positive whole number")
   }
-  if (!(length(k) %in% c(1, length(learners)))) {
+  if (is.null(Z) && !(length(k) %in% c(1, length(learners)))) {
     stop("'k' must be of length 1 or 'length(learners)'")
+  }
+  if (!is.null(Z) && !(length(k) %in% c(1, ncol(Z)))) {
+    stop("'k' must be of length 1 or 'ncol(Z)'")
   }
   if (any(unlist(d) < 1) || any(unlist(d) %% 1 != 0)) {
     stop("'d' must be a positive whole number")
