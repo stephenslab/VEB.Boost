@@ -81,6 +81,9 @@ VEBBoostNode <- R6Class(
           self$learner = constLearner
         }
 
+        if (any(is.nan(currentInputs$sigma2))) { # if we encountered a 0 in a multiplied node -> made an inf -> can't recover
+          currentInputs$sigma2 = self$sigma2
+        }
         self$learner$currentFit = self$learner$fitFunction(self$X, currentInputs$Y, currentInputs$sigma2, self$learner$currentFit)
       }
       self$updateMoments()
